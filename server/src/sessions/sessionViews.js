@@ -45,6 +45,7 @@ export function toPublicFile(file) {
     mimeType: file.mimeType,
     extension: file.extension,
     extractionStatus: file.extraction?.status ?? 'pending',
+    redactionPlanStatus: file.redactionPlan?.status ?? 'pending',
     uploadedAt: file.uploadedAt,
     ...(file.extraction ? { extraction: toPublicExtraction(file.extraction) } : {}),
   };

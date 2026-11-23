@@ -10,8 +10,8 @@ them for feedback.
 - [x] Phase 3A — Backend foundation
 - [x] Phase 3B — Frontend foundation
 - [x] Phase 4 — Upload and extraction (4A session/upload, 4B extraction, 4C frontend flow)
-- [ ] Phase 5 — PII detection (including local OCR)
-- [ ] Phase 6 — Privacy editor
+- [x] Phase 5 — PII detection (including local OCR)
+- [x] Phase 6 — Privacy editor
 - [ ] Phase 7 — Native PDF redaction
 - [ ] Phase 8 — Verification and visual QA
 - [ ] Phase 9 — Testing
