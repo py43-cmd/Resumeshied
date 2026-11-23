@@ -16,8 +16,12 @@ export function DetectionReviewCard({ detection, decision = 'undecided', onDecis
 
   return (
     <article
-      className={`rounded-lg border p-4 transition-opacity ${
-        decision === 'rejected' ? 'border-border bg-muted/20 opacity-70' : 'border-border bg-card'
+      className={`rounded-lg border p-4 transition-all ${
+        decision === 'accepted'
+          ? 'border-rose-300 bg-rose-50/60 ring-1 ring-rose-200'
+          : decision === 'rejected'
+            ? 'border-border bg-muted/20 opacity-70'
+            : 'border-border bg-card'
       }`}
       data-detection-id={detection.detectionId}
     >
@@ -29,6 +33,12 @@ export function DetectionReviewCard({ detection, decision = 'undecided', onDecis
               <Badge variant="warning" className="gap-1">
                 <AlertTriangle className="h-3 w-3" aria-hidden="true" />
                 Confirm
+              </Badge>
+            )}
+            {decision === 'accepted' && (
+              <Badge variant="destructive" className="gap-1">
+                <Check className="h-3 w-3" aria-hidden="true" />
+                Marked to hide
               </Badge>
             )}
             {decision === 'rejected' && <Badge variant="muted">Kept visible</Badge>}
