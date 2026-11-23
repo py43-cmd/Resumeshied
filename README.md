@@ -159,6 +159,7 @@ cd client && node --test tests/exportView.test.js
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
+| Browser shows `500` for every `/api/*` request | Vite is running but the API on port 4000 is not — the proxy returns 500 when its target is down | Start the backend first: `cd server && npm run dev` |
 | `Cannot find module 'mupdf'` | Dependencies not installed in `server/` | `cd server && npm install` |
 | `Promise.try is not a function` | `pdfjs-dist` 6.x on Node 22 | Keep `pdfjs-dist@4.10.38` pinned and import from `pdfjs-dist/legacy/build/pdf.mjs` |
 | `SESSION_EXPIRED` test flakes | System clock/timer delay under heavy load | Re-run; the test already allows a 100ms cleanup window |
