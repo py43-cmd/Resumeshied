@@ -76,3 +76,24 @@ export function planLabel(status) {
   if (status === 'blocked') return 'Blocked — action required';
   return 'Not saved yet';
 }
+
+/**
+ * The UI keeps a per-detection decision including the natural 'undecided'
+ * state. The plan API only accepts explicit accept/reject values, so drop
+ * undecided (and any unexpected value) rather than sending an invalid payload.
+ * Omitted detections are treated by the server as "no decision", which produces
+ * an honest REVIEW_INCOMPLETE blocker instead of a 400.
+ */
+export function toPlanDecisions(reviewState = {}) {
+  const decisions = {};
+
+  for (const [detectionId, decision] of Object.entries(
+    reviewState && typeof reviewState === 'object' ? reviewState : {},
+  )) {
+    if (decision === 'accepted' || decision === 'rejected') {
+      decisions[detectionId] = decision;
+    }
+  }
+
+  return decisions;
+}

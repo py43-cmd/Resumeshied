@@ -109,18 +109,32 @@ export function buildRedactionPlan(document, payload = {}) {
   }
 
   const detectionById = new Map(detections.detections.map((item) => [item.detectionId, item]));
+
+  // 'undecided' is a natural UI state, not a corrupt payload. Treating it as
+  // "no decision" produces a blocked plan (with an honest blocker) instead of
+  // failing validation before the user can see what needs review.
+  const normalizedDecisions = {};
   for (const [detectionId, decision] of Object.entries(decisions)) {
-    if (!detectionById.has(detectionId) || !VALID_DECISIONS.has(decision)) {
+    if (!detectionById.has(detectionId)) {
       throw ApiError.badRequest(
         'INVALID_REVIEW_DECISION',
         'A review decision does not match this detection result.',
       );
     }
+    if (decision === 'undecided') continue;
+    if (!VALID_DECISIONS.has(decision)) {
+      throw ApiError.badRequest(
+        'INVALID_REVIEW_DECISION',
+        'A review decision does not match this detection result.',
+      );
+    }
+    normalizedDecisions[detectionId] = decision;
   }
 
   const privacyBlockers = new Set();
   const incomplete = detections.detections.filter(
-    (detection) => detection.needsReview && !VALID_DECISIONS.has(decisions[detection.detectionId]),
+    (detection) =>
+      detection.needsReview && !VALID_DECISIONS.has(normalizedDecisions[detection.detectionId]),
   );
   if (incomplete.length > 0) {
     privacyBlockers.add('REVIEW_INCOMPLETE');
@@ -130,7 +144,7 @@ export function buildRedactionPlan(document, payload = {}) {
 
   for (const detection of detections.detections) {
     const decision =
-      decisions[detection.detectionId] ?? (detection.needsReview ? 'rejected' : 'accepted');
+      normalizedDecisions[detection.detectionId] ?? (detection.needsReview ? 'rejected' : 'accepted');
     if (decision !== 'accepted') continue;
 
     const bboxes = sanitizeDetectionBoxes(detection, extraction);

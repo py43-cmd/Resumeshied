@@ -7,6 +7,7 @@ import {
   planLabel,
   pointerToBbox,
   privacyBlockerMessages,
+  toPlanDecisions,
 } from '../src/lib/editorView.js';
 
 test('converts top-left PDF bboxes to CSS percentages', () => {
@@ -68,4 +69,23 @@ test('maps privacy blockers to honest messages', () => {
   assert.match(messages[0].message, /Hide or Keep/);
   assert.match(messages[1].message, /CUSTOM/);
   assert.equal(planLabel('blocked'), 'Blocked — action required');
+});
+
+test('toPlanDecisions sends only explicit accept/reject values', () => {
+  assert.deepEqual(
+    toPlanDecisions({
+      a: 'accepted',
+      b: 'rejected',
+      c: 'undecided',
+      d: 'something-else',
+      e: null,
+    }),
+    { a: 'accepted', b: 'rejected' },
+  );
+});
+
+test('toPlanDecisions tolerates missing or malformed review state', () => {
+  assert.deepEqual(toPlanDecisions(), {});
+  assert.deepEqual(toPlanDecisions(null), {});
+  assert.deepEqual(toPlanDecisions([]), {});
 });

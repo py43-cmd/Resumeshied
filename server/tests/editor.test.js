@@ -132,6 +132,26 @@ test('marks a plan blocked when a needsReview detection has no decision', async 
   await destroy(session);
 });
 
+test('an explicit undecided decision yields a blocked plan, not a 400', async () => {
+  const { session, document, detections } = await prepare(createPdfFromLines([NAME, EMAIL]));
+
+  const email = detections.detections.find((detection) => detection.type === 'EMAIL');
+  const name = detections.detections.find((detection) => detection.type === 'NAME');
+  const response = await putPlan(session, document.documentId, {
+    decisions: {
+      [email.detectionId]: 'accepted',
+      [name.detectionId]: 'undecided',
+    },
+    manualRegions: [],
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.planStatus, 'blocked');
+  assert.ok(response.body.data.plan.privacyBlockers.includes('REVIEW_INCOMPLETE'));
+
+  await destroy(session);
+});
+
 test('rejects manual regions outside the page', async () => {
   const { session, document, detections } = await prepare();
 

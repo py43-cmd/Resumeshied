@@ -30,7 +30,12 @@ import {
   getRedactionPlan,
   saveRedactionPlan,
 } from '../lib/editorApi.js';
-import { groupByType, planLabel, privacyBlockerMessages } from '../lib/editorView.js';
+import {
+  groupByType,
+  planLabel,
+  privacyBlockerMessages,
+  toPlanDecisions,
+} from '../lib/editorView.js';
 import {
   initialReviewState,
   typeLabel,
@@ -216,7 +221,7 @@ export default function EditorPage() {
     setSaving(true);
     try {
       const result = await saveRedactionPlan(sessionId, documentId, {
-        decisions: reviewState,
+        decisions: toPlanDecisions(reviewState),
         manualRegions: manualRegions.map(({ pageNumber, bbox }) => ({ pageNumber, bbox })),
       });
       setPlan(result);
