@@ -36,6 +36,10 @@ export class ApiError extends Error {
     return new ApiError({ status: 415, code, message });
   }
 
+  static conflict(code, message) {
+    return new ApiError({ status: 409, code, message });
+  }
+
   static unprocessable(code, message, details) {
     return new ApiError({ status: 422, code, message, details });
   }

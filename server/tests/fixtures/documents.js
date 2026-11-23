@@ -1,8 +1,20 @@
 import JSZip from 'jszip';
 
-/** A small, structurally valid single-page PDF with a real text layer. */
-export function createMinimalPdf(text = 'Hello World', { includeText = true } = {}) {
-  const stream = includeText ? `BT /F1 12 Tf 72 720 Td (${text}) Tj ET\n` : '';
+function escapePdfText(value) {
+  return String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)');
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function buildPdf(stream) {
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
@@ -28,13 +40,37 @@ export function createMinimalPdf(text = 'Hello World', { includeText = true } = 
   return Buffer.from(pdf, 'latin1');
 }
 
+/** A small, structurally valid single-page PDF with a real text layer. */
+export function createMinimalPdf(text = 'Hello World', { includeText = true } = {}) {
+  const stream = includeText
+    ? `BT /F1 12 Tf 72 720 Td (${escapePdfText(text)}) Tj ET\n`
+    : '';
+  return buildPdf(stream);
+}
+
+/** A PDF where each line is its own text item, so bbox mapping can be tested. */
+export function createPdfFromLines(lines) {
+  const stream = lines
+    .map((line, index) => {
+      const y = 720 - index * 18;
+      return `BT /F1 12 Tf 72 ${y} Td (${escapePdfText(line)}) Tj ET\n`;
+    })
+    .join('');
+  return buildPdf(stream);
+}
+
 /** A PDF with no text operators - the "scanned" path in our extractor. */
 export function createTextlessPdf() {
   return createMinimalPdf('', { includeText: false });
 }
 
-/** A minimal DOCX with one paragraph and no images. */
+/** A minimal DOCX with paragraphs and no images. */
 export async function createMinimalDocx(text = 'Hello World') {
+  const paragraphs = String(text)
+    .split('\n')
+    .map((line) => `<w:p><w:r><w:t>${escapeXml(line)}</w:t></w:r></w:p>`)
+    .join('');
+
   const zip = new JSZip();
   zip.file(
     '[Content_Types].xml',
@@ -56,7 +92,7 @@ export async function createMinimalDocx(text = 'Hello World') {
     'word/document.xml',
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-      `<w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`,
+      `<w:body>${paragraphs}</w:body></w:document>`,
   );
 
   return zip.generateAsync({ type: 'nodebuffer' });
