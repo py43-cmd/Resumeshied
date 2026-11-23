@@ -16,6 +16,7 @@ const ALLOWED_META_KEYS = [
   'port',
   'nodeEnv',
   'ttlSeconds',
+  'count',
 ];
 
 function safeMeta(meta) {

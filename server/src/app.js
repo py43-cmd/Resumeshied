@@ -7,6 +7,7 @@ import { config } from './config/index.js';
 import { requestId } from './middleware/requestId.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import healthRoutes from './routes/health.routes.js';
+import sessionRoutes from './routes/session.routes.js';
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use(express.json({ limit: config.jsonBodyLimit }));
 app.use(express.urlencoded({ extended: false, limit: config.jsonBodyLimit }));
 
 app.use(config.apiPrefix, healthRoutes);
+app.use(`${config.apiPrefix}/sessions`, sessionRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
