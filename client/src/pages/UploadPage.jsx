@@ -140,9 +140,9 @@ export default function UploadPage() {
               <AlertTriangle className="h-4 w-4 text-warning" aria-hidden="true" />
               <AlertTitle>Scanned document detected</AlertTitle>
               <AlertDescription>
-                This PDF has no readable text layer. Local OCR will identify sensitive
-                text and its position in the next phase. We will not claim the resume
-                was sanitized until that verification can run.
+                This PDF has no readable text layer. Continue to the review screen to
+                run local OCR; we will not claim the resume was sanitized until that
+                verification runs.
               </AlertDescription>
             </Alert>
           )}

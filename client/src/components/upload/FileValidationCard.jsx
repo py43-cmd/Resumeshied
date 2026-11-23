@@ -86,15 +86,19 @@ export function FileValidationCard({
         </div>
       )}
 
-      {phase === 'done' && extraction?.status === 'ready' && (
+      {phase === 'done' && ['ready', 'needs_ocr'].includes(extraction?.status) && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-sm">
           <span className="text-muted-foreground">
             {extraction.pageCount ?? 'Unknown'} page
             {extraction.pageCount === 1 ? '' : 's'} detected ·{' '}
-            {extraction.hasCoordinates ? 'positions available' : 'text only'}
+            {extraction.status === 'needs_ocr'
+              ? 'local OCR required'
+              : extraction.hasCoordinates
+                ? 'positions available'
+                : 'text only'}
           </span>
           <Button size="sm" onClick={onContinue}>
-            Continue to detection
+            {extraction.status === 'needs_ocr' ? 'Review scan / run OCR' : 'Continue to detection'}
           </Button>
         </div>
       )}
