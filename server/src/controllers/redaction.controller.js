@@ -8,6 +8,10 @@ import {
   storeRedaction,
 } from '../services/redaction/redactionStore.js';
 import { redactPdf } from '../services/redaction/pdfRedactor.js';
+import {
+  compareVisualFidelity,
+  verifyTextRemoval,
+} from '../services/verification/verificationService.js';
 import { ApiError } from '../utils/ApiError.js';
 import { sendSuccess } from '../utils/response.js';
 
@@ -47,13 +51,46 @@ export async function createRedactionHandler(req, res) {
     document.extraction.pageGeometry,
   );
 
+  // Privacy verification is a hard gate: the file is never stored if any
+  // approved box still contains extractable text.
+  const privacy = await verifyTextRemoval(result.bytes, document.redactionPlan);
+  if (privacy.status !== 'passed') {
+    throw ApiError.unprocessable(
+      privacy.blockers[0] ?? 'VERIFICATION_FAILED',
+      'A final privacy check found text inside an approved redaction area. The file was not saved.',
+      {
+        checkedBoxCount: privacy.checkedBoxCount,
+        failedBoxCount: privacy.failedBoxCount,
+      },
+    );
+  }
+
+  // Fidelity verification is advisory: warnings travel with the file but do
+  // not prevent a user from downloading a redacted copy.
+  const fidelity = compareVisualFidelity(originalBytes, result.bytes, document.redactionPlan);
+  const warnings = [...new Set([...result.warnings, ...fidelity.warnings])];
+
   const record = await storeRedaction(req.session, result.bytes, {
     documentId: document.documentId,
     pageCount: result.pageCount,
     redactedBoxCount: result.redactedBoxCount,
     removedAnnotationCount: result.removedAnnotationCount,
     removedEmbeddedFileCount: result.removedEmbeddedFileCount,
-    warnings: result.warnings,
+    warnings,
+    verification: {
+      privacy: {
+        status: privacy.status,
+        blockers: privacy.blockers,
+        checkedBoxCount: privacy.checkedBoxCount,
+        failedBoxCount: privacy.failedBoxCount,
+      },
+      fidelity: {
+        status: fidelity.status,
+        warnings: fidelity.warnings,
+        differingPixels: fidelity.differingPixels,
+        comparedPixels: fidelity.comparedPixels,
+      },
+    },
   });
 
   return sendSuccess(res, toPublicRedaction(record), {
@@ -66,6 +103,15 @@ export async function downloadRedactionHandler(req, res) {
   const record = findRedaction(req.session, req.params.redactionId);
   const document = findDocument(req.session, record.documentId);
   assertReadyPlan(document);
+
+  // Defense in depth: even a stored file is never served unless the recorded
+  // privacy verdict passed at creation time.
+  if (record.verification?.privacy?.status !== 'passed') {
+    throw ApiError.unprocessable(
+      'PRIVACY_VERIFICATION_FAILED',
+      'This file did not pass the final privacy check and cannot be downloaded.',
+    );
+  }
 
   const bytes = await fs.readFile(record.absolutePath);
 

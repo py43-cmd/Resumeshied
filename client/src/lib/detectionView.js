@@ -27,6 +27,14 @@ export const WARNING_MESSAGES = {
   PAGE_COUNT_CHANGED: 'The redacted PDF has a different page count than the original.',
   PAGE_DIMENSIONS_CHANGED: 'Some page dimensions changed during redaction. Review the result.',
   PDF_REQUIRED: 'Native redaction requires a PDF document.',
+  VISUAL_DIFF_OUTSIDE_BOXES:
+    'Something outside the approved redaction areas changed visually. Review the downloaded file.',
+  VISUAL_CHECK_UNAVAILABLE:
+    'Visual comparison could not be completed for this PDF. Formatting cannot be guaranteed.',
+  TEXT_REMAINS_IN_BOX:
+    'Text remained inside an approved redaction area. The file was not saved.',
+  VERIFICATION_FAILED:
+    'The final verification could not be completed. The file was not saved.',
 };
 
 export function typeLabel(type) {

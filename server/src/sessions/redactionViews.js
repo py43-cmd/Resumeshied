@@ -45,6 +45,7 @@ export function toPublicRedaction(record) {
     removedAnnotationCount: record.removedAnnotationCount,
     removedEmbeddedFileCount: record.removedEmbeddedFileCount,
     warnings: record.warnings,
+    verification: record.verification,
     createdAt: record.createdAt,
   };
 }

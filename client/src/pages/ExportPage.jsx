@@ -8,6 +8,7 @@ import {
   FileCheck2,
   Loader2,
   ShieldCheck,
+  XCircle,
 } from 'lucide-react';
 
 import { Stepper } from '../components/shared/Stepper.jsx';
@@ -21,11 +22,39 @@ import { warningMessages } from '../lib/detectionView.js';
 import { createRedaction, downloadRedaction } from '../lib/exportApi.js';
 
 const CHECKS = [
-  'Selected content permanently removed from the PDF',
-  'Text layer verified against the original page geometry',
-  'Existing annotations, embedded files and standard metadata cleared',
-  'File rewritten without incremental history',
+  { key: 'text', label: 'Selected content permanently removed from the PDF' },
+  { key: 'geometry', label: 'Text layer verified against the original page geometry' },
+  { key: 'cleanup', label: 'Existing annotations, embedded files and standard metadata cleared' },
+  { key: 'rewrite', label: 'File rewritten without incremental history' },
+  { key: 'visual', label: 'Untouched page areas render identically to the original' },
 ];
+
+const GEOMETRY_WARNINGS = new Set(['PAGE_COUNT_CHANGED', 'PAGE_DIMENSIONS_CHANGED']);
+
+/** Privacy checks block export; fidelity checks only annotate the result. */
+function checkStatus(check, result, warningCodes) {
+  const verification = result?.verification ?? {};
+
+  if (check.key === 'visual') {
+    if (warningCodes.includes('VISUAL_DIFF_OUTSIDE_BOXES')) return 'warning';
+    if (verification.fidelity?.status === 'unverifiable') return 'warning';
+    return 'pass';
+  }
+
+  if (check.key === 'geometry' && warningCodes.some((code) => GEOMETRY_WARNINGS.has(code))) {
+    return 'warning';
+  }
+
+  if (verification.privacy?.status === 'passed') return 'pass';
+  if (verification.privacy?.status === 'failed') return 'fail';
+  return 'warning';
+}
+
+const STATUS_ICONS = {
+  pass: { Icon: Check, className: 'text-success' },
+  warning: { Icon: AlertTriangle, className: 'text-warning' },
+  fail: { Icon: XCircle, className: 'text-destructive' },
+};
 
 export default function ExportPage() {
   const { documentId } = useParams();
@@ -74,7 +103,8 @@ export default function ExportPage() {
     }
   }
 
-  const warnings = warningMessages(result?.warnings ?? []);
+  const warningCodes = result?.warnings ?? [];
+  const warnings = warningMessages(warningCodes);
 
   return (
     <div>
@@ -145,13 +175,34 @@ export default function ExportPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <ul className="space-y-2" aria-label="Verification checks">
-                {CHECKS.map((check) => (
-                  <li key={check} className="flex items-start gap-2 text-sm text-foreground">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
-                    {check}
-                  </li>
-                ))}
+                {CHECKS.map((check) => {
+                  const status = checkStatus(check, result, warningCodes);
+                  const { Icon, className } = STATUS_ICONS[status];
+
+                  return (
+                    <li key={check.key} className="flex items-start gap-2 text-sm text-foreground">
+                      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${className}`} aria-hidden="true" />
+                      <span>{check.label}</span>
+                      {status !== 'pass' && (
+                        <Badge variant="warning" className="ml-auto shrink-0">
+                          Review
+                        </Badge>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
+
+              {result.verification?.fidelity && (
+                <p className="text-xs text-muted-foreground">
+                  Visual check compared{' '}
+                  {result.verification.fidelity.comparedPixels.toLocaleString()} unchanged-area
+                  pixels
+                  {result.verification.fidelity.differingPixels > 0 &&
+                    ` · ${result.verification.fidelity.differingPixels} differed`}
+                  .
+                </p>
+              )}
 
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-4">
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">

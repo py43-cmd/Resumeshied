@@ -13,7 +13,7 @@ them for feedback.
 - [x] Phase 5 — PII detection (including local OCR)
 - [x] Phase 6 — Privacy editor
 - [x] Phase 7 — Native PDF redaction
-- [ ] Phase 8 — Verification and visual QA
+- [x] Phase 8 — Verification and visual QA
 - [ ] Phase 9 — Testing
 - [ ] Phase 10 — Deployment
 
@@ -77,12 +77,34 @@ dependencies or external calls.
   download. Fidelity issues (page count or dimension drift) warn but still allow
   the download.
 
+### Verification and visual QA (Phase 8)
+
+Every redacted file is checked locally before it is stored:
+
+- **Privacy (hard gate).** The rewritten PDF is re-extracted with pdfjs. If any
+  text item substantially overlaps an approved box, the operation returns
+  `TEXT_REMAINS_IN_BOX` (HTTP 422) and the file is **never stored**. The download
+  endpoint also re-checks the recorded privacy verdict.
+- **Fidelity (advisory).** Original and redacted pages are rendered to raw RGB
+  pixels with MuPDF and compared outside the approved boxes. A change there
+  produces `VISUAL_DIFF_OUTSIDE_BOXES`, which the UI shows as a warning but does
+  **not** block download.
+
+The visual comparison pads each box by up to 25% of its height (minimum 3pt)
+because MuPDF clears whole glyph boxes, including descenders that extend past
+pdfjs's reported text box. Only counts and codes are stored — never text.
+
+The response includes `data.verification.privacy` and `data.verification.fidelity`
+with statuses and pixel counts, and the export page renders one status row per
+check.
+
 ### Known limitations
 
-- MuPDF removes glyphs whose boxes intersect a redaction rect. A manual box that
-  is slightly too small can leave partial characters; reviewed detection boxes
-  are padded from text geometry.
+- A manual box that misses a line entirely cannot be detected by geometry alone
+  (there is no approved box to compare against). Review the preview carefully.
 - XMP metadata and AcroForm field values are not yet cleared. If a document uses
   those features, treat the output as unverified.
 - DOCX files require conversion to PDF before coordinate redaction; until then
   the redact endpoint rejects them with `PDF_REQUIRED`.
+- Visual comparison assumes unrotated pages; heavily rotated or unusual page
+  geometry may report `VISUAL_CHECK_UNAVAILABLE`.

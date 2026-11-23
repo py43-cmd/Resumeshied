@@ -27,6 +27,7 @@ export async function storeRedaction(session, bytes, metadata) {
     removedAnnotationCount: metadata.removedAnnotationCount,
     removedEmbeddedFileCount: metadata.removedEmbeddedFileCount ?? 0,
     warnings: metadata.warnings ?? [],
+    verification: metadata.verification ?? null,
     createdAt: new Date().toISOString(),
   };
 

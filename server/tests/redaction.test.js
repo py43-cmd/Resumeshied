@@ -85,6 +85,10 @@ test('creates a permanently redacted PDF and downloads it privately', async () =
   assert.equal(result.documentId, document.documentId);
   assert.equal(result.pageCount, 1);
   assert.ok(result.redactedBoxCount > 0);
+  assert.equal(result.verification.privacy.status, 'passed');
+  assert.ok(result.verification.privacy.checkedBoxCount > 0);
+  assert.equal(result.verification.privacy.failedBoxCount, 0);
+  assert.equal(result.verification.fidelity.status, 'passed');
 
   const download = await request(app)
     .get(`/api/sessions/${session.sessionId}/redactions/${result.redactionId}/download`)
