@@ -1,11 +1,22 @@
 import axios from 'axios';
 
+import { isSessionInvalidCode } from './sessionStatus.js';
+
 // Set by SessionContext. Kept here so every request gets the token
 // without components having to pass it around.
 let sessionToken = null;
 
 export function setSessionToken(token) {
   sessionToken = token ?? null;
+}
+
+// Registered by SessionContext. Invoked when the server reports the cached
+// session is gone (e.g. after a backend restart), so the stale token is dropped
+// and the user is guided to start a new session instead of seeing a broken page.
+let sessionInvalidHandler = null;
+
+export function setSessionInvalidHandler(handler) {
+  sessionInvalidHandler = handler ?? null;
 }
 
 export class ApiClientError extends Error {
@@ -39,6 +50,11 @@ api.interceptors.response.use(
     const message =
       error.response?.data?.error?.message ??
       'Cannot reach the server. Check your connection and try again.';
+
+    if (isSessionInvalidCode(code) && sessionInvalidHandler) {
+      sessionInvalidHandler();
+    }
+
     return Promise.reject(new ApiClientError(code, message, status));
   },
 );

@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { setSessionToken } from '../lib/api.js';
+import { setSessionInvalidHandler, setSessionToken } from '../lib/api.js';
 
 const STORAGE_KEY = 'resumeshield.session';
 const SessionContext = createContext(null);
@@ -59,6 +59,14 @@ export function SessionProvider({ children }) {
     setSessionToken(null);
     setSession(null);
   }, []);
+
+  // If the server reports the session is gone (restart/expiry), drop the stale
+  // token. RequireSession then shows the "start a new session" recovery screen.
+  // API responses are async, so this is registered before any 404 can arrive.
+  useEffect(() => {
+    setSessionInvalidHandler(clearSession);
+    return () => setSessionInvalidHandler(null);
+  }, [clearSession]);
 
   const value = useMemo(
     () => ({
