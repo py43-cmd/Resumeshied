@@ -28,8 +28,18 @@ export class ApiClientError extends Error {
   }
 }
 
+const configuredApiBaseUrl = import.meta.env.VITE_API_URL;
+
+if (import.meta.env.PROD && !configuredApiBaseUrl) {
+  // Vite inlines env vars at build time. Without this, the SPA calls /api on
+  // its own domain, which is wrong for the split Vercel + Node deployment.
+  console.warn(
+    'VITE_API_URL is not set. The production build will call /api on the frontend domain. Set VITE_API_URL to the API base URL and rebuild.',
+  );
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? '/api',
+  baseURL: configuredApiBaseUrl ?? '/api',
   timeout: 30000,
   // No default Content-Type: axios sets application/json for objects and
   // multipart/form-data with the correct boundary for FormData in Phase 4.

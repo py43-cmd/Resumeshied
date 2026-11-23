@@ -15,7 +15,7 @@ them for feedback.
 - [x] Phase 7 — Native PDF redaction
 - [x] Phase 8 — Verification and visual QA
 - [x] Phase 9 — Testing
-- [ ] Phase 10 — Deployment
+- [ ] Phase 10 — Deployment (see `DEPLOYMENT.md`)
 
 ## Repository layout
 
@@ -50,6 +50,12 @@ npm run build      # production build into client/dist
 The Vite dev server proxies `/api` to `http://localhost:4000`, so start the
 backend first. Create `client/.env` from `client/.env.example` only if the API
 is hosted elsewhere.
+
+## Deployment
+
+Production uses the Vite SPA on Vercel and the Express API on a long-running
+Node host. Follow [`DEPLOYMENT.md`](DEPLOYMENT.md) for the exact Vercel project
+settings, environment variables, and verification checklist.
 
 ## Privacy rules for contributors
 
@@ -115,8 +121,8 @@ Run both suites from the repository root. Each `node --test` file runs in its
 own process, so the short-TTL expiry test cannot affect the other suites.
 
 ```bash
-cd server && npm test       # expected: 39 tests, 39 pass, 0 fail
-cd ../client && npm test    # expected: 21 tests, 21 pass, 0 fail
+cd server && npm test       # expected: 57 tests, 57 pass, 0 fail
+cd ../client && npm test    # expected: 29 tests, 29 pass, 0 fail
 cd ../client && npm run build
 ```
 
