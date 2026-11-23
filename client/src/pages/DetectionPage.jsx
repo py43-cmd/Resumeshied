@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AlertTriangle, FileSearch, Loader2, ScanLine } from 'lucide-react';
+import { AlertTriangle, Check, FileSearch, Loader2, ScanLine, ShieldCheck } from 'lucide-react';
 
 import { Stepper } from '../components/shared/Stepper.jsx';
 import { AccuracyDisclaimer } from '../components/shared/AccuracyDisclaimer.jsx';
@@ -10,6 +10,7 @@ import { DetectionReviewCard } from '../components/detection/DetectionReviewCard
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert.jsx';
 import { Badge } from '../components/ui/Badge.jsx';
 import { Button } from '../components/ui/Button.jsx';
+import { MetricCard } from '../components/ui/MetricCard.jsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card.jsx';
 import { useSession } from '../context/SessionContext.jsx';
 import {
@@ -24,23 +25,6 @@ import {
   reviewSummary,
   warningMessages,
 } from '../lib/detectionView.js';
-
-function StatCard({ label, value, tone = 'default' }) {
-  return (
-    <Card className="relative overflow-hidden">
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
-      />
-      <CardContent className="p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-          {label}
-        </p>
-        <p className={`mt-2 text-2xl font-semibold tracking-tight ${tone}`}>{value}</p>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function DetectionPage() {
   const { documentId } = useParams();
@@ -240,11 +224,16 @@ export default function DetectionPage() {
             </Alert>
           )}
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Found" value={summary.total} />
-            <StatCard label="Needs confirmation" value={summary.undecided} tone="text-warning" />
-            <StatCard label="Marked to hide" value={summary.accepted} tone="text-success" />
-            <StatCard label="Kept visible" value={summary.rejected} />
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard label="Found" value={summary.total} icon={FileSearch} tone="primary" />
+            <MetricCard
+              label="Needs confirmation"
+              value={summary.undecided}
+              icon={AlertTriangle}
+              tone="warning"
+            />
+            <MetricCard label="Marked to hide" value={summary.accepted} icon={Check} tone="success" />
+            <MetricCard label="Kept visible" value={summary.rejected} icon={ShieldCheck} tone="accent" />
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-3">

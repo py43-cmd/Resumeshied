@@ -6,7 +6,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  FileSearch,
   Loader2,
+  MousePointer2,
   Trash2,
   X,
 } from 'lucide-react';
@@ -19,6 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert.jsx'
 import { Badge } from '../components/ui/Badge.jsx';
 import { Button } from '../components/ui/Button.jsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card.jsx';
+import { MetricCard } from '../components/ui/MetricCard.jsx';
 import { useSession } from '../context/SessionContext.jsx';
 import {
   getDocument,
@@ -42,23 +45,6 @@ import {
   warningMessages,
 } from '../lib/detectionView.js';
 import { cn } from '../lib/utils.js';
-
-function StatCard({ label, value, tone }) {
-  return (
-    <Card className="relative overflow-hidden">
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent"
-      />
-      <CardContent className="p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-          {label}
-        </p>
-        <p className={cn('mt-2 text-2xl font-semibold tracking-tight', tone)}>{value}</p>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function EditorPage() {
   const { documentId } = useParams();
@@ -333,15 +319,21 @@ export default function EditorPage() {
             </Alert>
           )}
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Found" value={detections.length} />
-            <StatCard
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard label="Found" value={detections.length} icon={FileSearch} tone="primary" />
+            <MetricCard
               label="Needs decision"
               value={undecidedCount}
-              tone={undecidedCount > 0 ? 'text-warning' : undefined}
+              icon={AlertTriangle}
+              tone={undecidedCount > 0 ? 'warning' : 'muted'}
             />
-            <StatCard label="Marked to hide" value={acceptedCount} tone="text-success" />
-            <StatCard label="Manual regions" value={manualRegions.length} />
+            <MetricCard label="Marked to hide" value={acceptedCount} icon={Check} tone="success" />
+            <MetricCard
+              label="Manual regions"
+              value={manualRegions.length}
+              icon={MousePointer2}
+              tone="accent"
+            />
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-5">

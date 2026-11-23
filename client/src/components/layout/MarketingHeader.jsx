@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import { ShieldCheck } from 'lucide-react';
+
 import { Button } from '../ui/Button.jsx';
+import { BrandMark } from '../ui/BrandMark.jsx';
 
 export function MarketingHeader() {
   return (
@@ -10,9 +11,7 @@ export function MarketingHeader() {
           to="/"
           className="flex items-center gap-3 font-semibold tracking-tight text-foreground"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 ring-1 ring-primary/30">
-            <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-          </span>
+          <BrandMark size="sm" />
           ResumeShield
         </Link>
 
