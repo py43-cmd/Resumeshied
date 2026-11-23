@@ -1,0 +1,10 @@
+# Keep source files with LF line endings in the repository on all platforms.
+* text=auto eol=lf
+
+# Document fixtures and binary assets must never be line-converted.
+*.pdf binary
+*.docx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary

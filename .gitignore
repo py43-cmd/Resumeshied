@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+dist/
+build/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime / temporary document data (privacy-critical)
+temp/
+tmp/
+uploads/
+*.log
+logs/
+
+# Test output
+coverage/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Keep empty directory markers
+!**/.gitkeep
