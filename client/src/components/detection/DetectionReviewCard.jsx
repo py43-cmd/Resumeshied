@@ -36,7 +36,7 @@ export function DetectionReviewCard({ detection, decision = 'undecided', onDecis
               </Badge>
             )}
             {decision === 'accepted' && (
-              <Badge variant="destructive" className="gap-1">
+              <Badge variant="destructive" className="gap-1 border-transparent bg-black text-white">
                 <Check className="h-3 w-3" aria-hidden="true" />
                 Marked to hide
               </Badge>
@@ -44,7 +44,16 @@ export function DetectionReviewCard({ detection, decision = 'undecided', onDecis
             {decision === 'rejected' && <Badge variant="muted">Kept visible</Badge>}
           </div>
 
-          <p className="break-all font-mono text-sm text-foreground">{detection.maskedValue}</p>
+          {decision === 'accepted' ? (
+            <p
+              className="inline-block max-w-full select-none break-all rounded-sm bg-black px-1.5 py-0.5 font-mono text-sm text-black"
+              title="This value is marked to hide"
+            >
+              {detection.maskedValue}
+            </p>
+          ) : (
+            <p className="break-all font-mono text-sm text-foreground">{detection.maskedValue}</p>
+          )}
 
           <p className="text-xs text-muted-foreground">
             {pageLabel} · {methodLabel(detection.method)} · {confidencePercent(detection.confidence)}{' '}

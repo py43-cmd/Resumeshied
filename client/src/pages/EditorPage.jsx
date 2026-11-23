@@ -457,7 +457,7 @@ export default function EditorPage() {
                         className={cn(
                           'rounded-lg border p-3',
                           decision === 'rejected' && 'border-border bg-muted/20 opacity-70',
-                          decision === 'accepted' && 'border-rose-300 bg-rose-50/50',
+                          decision === 'accepted' && 'border-black bg-neutral-900/5',
                           decision === 'undecided' && 'border-border bg-card',
                         )}
                       >
@@ -467,9 +467,15 @@ export default function EditorPage() {
                               <Badge variant="outline">{typeLabel(detection.type)}</Badge>
                               {detection.needsReview && <Badge variant="warning">Confirm</Badge>}
                             </div>
-                            <p className="break-all font-mono text-xs text-foreground">
-                              {detection.maskedValue}
-                            </p>
+                            {decision === 'accepted' ? (
+                              <p className="inline-block max-w-full select-none break-all rounded-sm bg-black px-1 py-0.5 font-mono text-xs text-black">
+                                {detection.maskedValue}
+                              </p>
+                            ) : (
+                              <p className="break-all font-mono text-xs text-foreground">
+                                {detection.maskedValue}
+                              </p>
+                            )}
                             <p className="text-[11px] text-muted-foreground">
                               {detection.pageNumber ? `Page ${detection.pageNumber}` : 'No page'}
                               {(detection.bboxes?.length ?? 0) > 0 &&

@@ -82,12 +82,12 @@ export function PagePreview({ previewUrl, loading, pageGeometry, overlays = [], 
             return (
               <div
                 key={overlay.key}
-                className="pointer-events-none absolute z-10 rounded-sm border-2 border-rose-500/80 bg-rose-500/25"
+                className="pointer-events-none absolute z-10 rounded-sm bg-black shadow-[0_0_0_1px_rgba(0,0,0,0.6)]"
                 style={style}
-                title={overlay.label}
+                title={`Hidden: ${overlay.label}`}
               >
                 {overlay.label && (
-                  <span className="absolute -top-5 left-0 max-w-[160px] truncate rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                  <span className="absolute -top-5 left-0 max-w-[160px] truncate rounded bg-black px-1.5 py-0.5 text-[10px] font-medium text-white">
                     {overlay.label}
                   </span>
                 )}
