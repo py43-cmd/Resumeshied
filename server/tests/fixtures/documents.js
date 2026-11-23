@@ -1,4 +1,7 @@
+import canvasModule from 'canvas';
 import JSZip from 'jszip';
+
+const { createCanvas } = canvasModule;
 
 function escapePdfText(value) {
   return String(value)
@@ -62,6 +65,57 @@ export function createPdfFromLines(lines) {
 /** A PDF with no text operators - the "scanned" path in our extractor. */
 export function createTextlessPdf() {
   return createMinimalPdf('', { includeText: false });
+}
+
+function buildImagePdf(jpeg, imageWidth, imageHeight) {
+  const pageWidth = 612;
+  const pageHeight = 792;
+  const content = `q ${pageWidth} 0 0 ${pageHeight} 0 0 cm /Im0 Do Q\n`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Contents 4 0 R /Resources << /XObject << /Im0 5 0 R >> >> >>`,
+    `<< /Length ${Buffer.byteLength(content, 'latin1')} >>\nstream\n${content}endstream`,
+    `<< /Type /XObject /Subtype /Image /Width ${imageWidth} /Height ${imageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n${jpeg.toString('latin1')}\nendstream`,
+  ];
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [];
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(Buffer.byteLength(pdf, 'latin1'));
+    pdf += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
+  }
+
+  const xrefOffset = Buffer.byteLength(pdf, 'latin1');
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+
+  return Buffer.from(pdf, 'latin1');
+}
+
+/**
+ * A real image-only page: text is rasterized into a JPEG embedded as the page's
+ * only XObject, so there is no extractable text layer for Phase 5A to use.
+ */
+export function createScannedPdf(lines) {
+  const imageWidth = 1224;
+  const imageHeight = 1584;
+  const image = createCanvas(imageWidth, imageHeight);
+  const context = image.getContext('2d');
+
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, imageWidth, imageHeight);
+  context.fillStyle = '#000000';
+  context.font = '48px sans-serif';
+
+  lines.forEach((line, index) => {
+    context.fillText(line, 80, 150 + index * 110);
+  });
+
+  return buildImagePdf(image.toBuffer('image/jpeg', 95), imageWidth, imageHeight);
 }
 
 /** A minimal DOCX with paragraphs and no images. */

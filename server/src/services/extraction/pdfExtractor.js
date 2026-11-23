@@ -1,3 +1,6 @@
+// Install canvas globals before pdfjs is evaluated.
+import '../pdf/nodeCanvasSetup.js';
+
 import fs from 'node:fs/promises';
 
 // The legacy build is required for Node.js in pdfjs-dist 4.x.

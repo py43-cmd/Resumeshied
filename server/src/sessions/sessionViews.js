@@ -4,6 +4,17 @@ export function remainingSeconds(session) {
   return Math.max(0, Math.ceil((session.expiresAtMs - Date.now()) / 1000));
 }
 
+function toPublicOcr(ocr) {
+  return {
+    engine: ocr.engine,
+    language: ocr.language,
+    averageConfidence: ocr.averageConfidence,
+    lineCount: ocr.lineCount,
+    renderScale: ocr.renderScale,
+    performedAt: ocr.performedAt,
+  };
+}
+
 function toPublicExtraction(extraction) {
   return {
     status: extraction.status,
@@ -13,6 +24,7 @@ function toPublicExtraction(extraction) {
     hasCoordinates: extraction.hasCoordinates,
     warnings: extraction.warnings,
     source: extraction.source,
+    ...(extraction.ocr ? { ocr: toPublicOcr(extraction.ocr) } : {}),
     pageGeometry: (extraction.pages ?? []).map((page) => ({
       pageNumber: page.pageNumber,
       width: page.width,
