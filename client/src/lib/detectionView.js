@@ -24,6 +24,9 @@ export const WARNING_MESSAGES = {
   DIGITAL_SIGNATURE_SUSPECTED: 'This PDF appears to contain a digital signature.',
   NO_TEXT_LAYER: 'No embedded text layer was found in this PDF.',
   ENCRYPTED_PDF: 'Encrypted PDFs cannot be processed.',
+  PAGE_COUNT_CHANGED: 'The redacted PDF has a different page count than the original.',
+  PAGE_DIMENSIONS_CHANGED: 'Some page dimensions changed during redaction. Review the result.',
+  PDF_REQUIRED: 'Native redaction requires a PDF document.',
 };
 
 export function typeLabel(type) {

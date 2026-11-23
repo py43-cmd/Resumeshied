@@ -34,7 +34,7 @@ export default function App() {
           element={protectedRoute(<EditorPage />)}
         />
         <Route
-          path="/export/:redactionId"
+          path="/export/:documentId"
           element={protectedRoute(<ExportPage />)}
         />
         <Route path="*" element={<NotFoundPage />} />

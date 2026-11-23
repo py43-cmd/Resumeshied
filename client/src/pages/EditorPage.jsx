@@ -222,9 +222,9 @@ export default function EditorPage() {
       setPlan(result);
 
       if (result.planStatus === 'ready') {
-        updateSession({ redactionId: result.plan.planId, review: { documentId, decisions: reviewState } });
+        updateSession({ review: { documentId, decisions: reviewState } });
         toast.success('Redaction plan saved.');
-        navigate(`/export/${result.plan.planId}`);
+        navigate(`/export/${documentId}`);
       } else {
         updateSession({ review: { documentId, decisions: reviewState } });
         toast.warning('Plan saved, but privacy checks are blocking export.');

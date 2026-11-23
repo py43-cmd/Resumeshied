@@ -34,3 +34,17 @@ export function toPublicRedactionPlan(plan) {
     },
   };
 }
+
+/** The redaction result exposes counts and warnings — never document text. */
+export function toPublicRedaction(record) {
+  return {
+    redactionId: record.redactionId,
+    documentId: record.documentId,
+    pageCount: record.pageCount,
+    redactedBoxCount: record.redactedBoxCount,
+    removedAnnotationCount: record.removedAnnotationCount,
+    removedEmbeddedFileCount: record.removedEmbeddedFileCount,
+    warnings: record.warnings,
+    createdAt: record.createdAt,
+  };
+}

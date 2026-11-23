@@ -24,6 +24,7 @@
     "mammoth": "^1.13.0",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
+    "mupdf": "^1.28.6",
     "pdfjs-dist": "^4.10.38",
     "tesseract.js": "^7.0.0"
   },

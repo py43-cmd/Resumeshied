@@ -12,7 +12,7 @@ them for feedback.
 - [x] Phase 4 — Upload and extraction (4A session/upload, 4B extraction, 4C frontend flow)
 - [x] Phase 5 — PII detection (including local OCR)
 - [x] Phase 6 — Privacy editor
-- [ ] Phase 7 — Native PDF redaction
+- [x] Phase 7 — Native PDF redaction
 - [ ] Phase 8 — Verification and visual QA
 - [ ] Phase 9 — Testing
 - [ ] Phase 10 — Deployment
@@ -57,3 +57,32 @@ is hosted elsewhere.
 2. Never store uploaded files outside a per-session temporary directory.
 3. Never send resume content to an external API.
 4. Never cover text with a rectangle and call it redaction.
+
+## Redaction engine (Phase 7)
+
+Native redaction uses [MuPDF.js](https://mupdf.com/mupdf-js) (`mupdf` on npm),
+an official Artifex WebAssembly build that runs locally with no native
+dependencies or external calls.
+
+- `POST /api/sessions/:sessionId/documents/:documentId/redact` applies the saved
+  plan using `applyRedactions()` with text removal, line-art removal, and image
+  pixel redaction.
+- The PDF is saved with `garbage=deduplicate,compress=yes,encrypt=none`, which
+  physically purges superseded objects — no incremental history is left behind.
+- Existing annotations, embedded files, and standard Info metadata are cleared.
+- `GET /api/sessions/:sessionId/redactions/:redactionId/download` returns the
+  rewritten PDF with `no-store` headers; both endpoints re-check the privacy
+  plan before proceeding.
+- Privacy failures (blocked plan, non-PDF input) return HTTP 422 and block the
+  download. Fidelity issues (page count or dimension drift) warn but still allow
+  the download.
+
+### Known limitations
+
+- MuPDF removes glyphs whose boxes intersect a redaction rect. A manual box that
+  is slightly too small can leave partial characters; reviewed detection boxes
+  are padded from text geometry.
+- XMP metadata and AcroForm field values are not yet cleared. If a document uses
+  those features, treat the output as unverified.
+- DOCX files require conversion to PDF before coordinate redaction; until then
+  the redact endpoint rejects them with `PDF_REQUIRED`.

@@ -12,6 +12,7 @@ import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import healthRoutes from './routes/health.routes.js';
 import sessionRoutes from './routes/session.routes.js';
 import documentRoutes from './routes/document.routes.js';
+import redactionRoutes from './routes/redaction.routes.js';
 
 const app = express();
 
@@ -20,7 +21,7 @@ app.use(helmet());
 app.use(
   cors({
     origin: config.clientOrigin,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-Session-Token', 'X-Request-Id'],
   }),
 );
@@ -51,6 +52,7 @@ app.use(express.urlencoded({ extended: false, limit: config.jsonBodyLimit }));
 app.use(config.apiPrefix, healthRoutes);
 app.use(`${config.apiPrefix}/sessions`, sessionRoutes);
 app.use(`${config.apiPrefix}/sessions/:sessionId/documents`, documentRoutes);
+app.use(`${config.apiPrefix}/sessions/:sessionId/redactions`, redactionRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
