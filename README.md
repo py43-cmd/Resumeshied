@@ -7,8 +7,8 @@ them for feedback.
 
 - [x] Phase 1 — Product planning
 - [x] Phase 2 — UI/UX design + visual-preservation addendum
-- [ ] Phase 3A — Backend foundation (this step)
-- [ ] Phase 3B — Frontend foundation
+- [x] Phase 3A — Backend foundation
+- [x] Phase 3B — Frontend foundation
 - [ ] Phase 4 — Upload and extraction
 - [ ] Phase 5 — PII detection (including local OCR)
 - [ ] Phase 6 — Privacy editor
@@ -36,6 +36,19 @@ npm test
 ```
 
 Health check: `GET http://localhost:4000/api/health`
+
+## Quick start (frontend)
+
+```bash
+cd client
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # production build into client/dist
+```
+
+The Vite dev server proxies `/api` to `http://localhost:4000`, so start the
+backend first. Create `client/.env` from `client/.env.example` only if the API
+is hosted elsewhere.
 
 ## Privacy rules for contributors
 
