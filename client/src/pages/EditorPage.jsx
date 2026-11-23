@@ -221,7 +221,7 @@ export default function EditorPage() {
     setSaving(true);
     try {
       const result = await saveRedactionPlan(sessionId, documentId, {
-        decisions: toPlanDecisions(reviewState),
+        decisions: toPlanDecisions(reviewState, detections),
         manualRegions: manualRegions.map(({ pageNumber, bbox }) => ({ pageNumber, bbox })),
       });
       setPlan(result);

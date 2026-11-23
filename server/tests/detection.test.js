@@ -63,6 +63,27 @@ async function destroy(session) {
     .set('X-Session-Token', session.token);
 }
 
+test('re-running detection reuses stable IDs from a ready result', async () => {
+  const { session, document } = await upload(
+    createPdfFromLines(RESUME_LINES),
+    'resume.pdf',
+    'application/pdf',
+  );
+  await extract(session, document.documentId);
+
+  const first = await detect(session, document.documentId);
+  assert.equal(first.status, 200);
+  const second = await detect(session, document.documentId);
+  assert.equal(second.status, 200);
+
+  const firstIds = first.body.data.detections.map((item) => item.detectionId).sort();
+  const secondIds = second.body.data.detections.map((item) => item.detectionId).sort();
+  assert.deepEqual(secondIds, firstIds);
+  assert.ok(firstIds.length > 0);
+
+  await destroy(session);
+});
+
 test('detects PII with masked values and page-accurate bboxes', async () => {
   const { session, document } = await upload(
     createPdfFromLines(RESUME_LINES),

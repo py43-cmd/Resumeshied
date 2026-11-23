@@ -109,6 +109,14 @@ export function detectDocumentHandler(req, res) {
     );
   }
 
+  // Detection IDs are minted fresh on every run. If a ready result already
+  // exists (e.g. React StrictMode fires the load effect twice in dev), reuse it
+  // so decisions saved against those IDs stay valid. OCR clears `detections`
+  // before re-running, so genuine re-detection still regenerates.
+  if (document.detections?.status === 'ready') {
+    return sendDetectionResult(req, res, document);
+  }
+
   document.detections = runDetectionForDocument(document);
   document.redactionPlan = null;
   return sendDetectionResult(req, res, document);

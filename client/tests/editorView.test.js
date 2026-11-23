@@ -89,3 +89,21 @@ test('toPlanDecisions tolerates missing or malformed review state', () => {
   assert.deepEqual(toPlanDecisions(null), {});
   assert.deepEqual(toPlanDecisions([]), {});
 });
+
+test('toPlanDecisions drops decisions for stale detection IDs', () => {
+  const reviewState = {
+    current: 'accepted',
+    stale: 'accepted',
+    alsoStale: 'rejected',
+  };
+  const detections = [{ detectionId: 'current' }, { detectionId: 'other' }];
+
+  assert.deepEqual(toPlanDecisions(reviewState, detections), { current: 'accepted' });
+});
+
+test('toPlanDecisions keeps all valid decisions when detection list is unavailable', () => {
+  assert.deepEqual(
+    toPlanDecisions({ a: 'accepted', b: 'rejected', c: 'undecided' }, null),
+    { a: 'accepted', b: 'rejected' },
+  );
+});

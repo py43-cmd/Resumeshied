@@ -84,15 +84,20 @@ export function planLabel(status) {
  * Omitted detections are treated by the server as "no decision", which produces
  * an honest REVIEW_INCOMPLETE blocker instead of a 400.
  */
-export function toPlanDecisions(reviewState = {}) {
+export function toPlanDecisions(reviewState = {}, detections = null) {
   const decisions = {};
+  const state = reviewState && typeof reviewState === 'object' ? reviewState : {};
+  const allowedIds = Array.isArray(detections)
+    ? new Set(detections.map((item) => item?.detectionId).filter(Boolean))
+    : null;
 
-  for (const [detectionId, decision] of Object.entries(
-    reviewState && typeof reviewState === 'object' ? reviewState : {},
-  )) {
-    if (decision === 'accepted' || decision === 'rejected') {
-      decisions[detectionId] = decision;
-    }
+  for (const [detectionId, decision] of Object.entries(state)) {
+    if (decision !== 'accepted' && decision !== 'rejected') continue;
+    // Detection runs mint fresh IDs. React StrictMode (dev) can run the load
+    // effect twice, leaving stale IDs merged into the review state. Never send
+    // a decision for an ID that is not in the current detection result.
+    if (allowedIds && !allowedIds.has(detectionId)) continue;
+    decisions[detectionId] = decision;
   }
 
   return decisions;
