@@ -19,42 +19,107 @@ in-memory sessions and per-session temp directories across several requests.
 Vercel Functions do not guarantee that later requests reach the same instance,
 so a serverless deployment can lose sessions mid-flow.
 
-## 1. Deploy the API first
+## 1. Deploy the API on Render
 
-Use a long-running Node host such as Render, Railway, Fly.io, or a VPS.
+The repository root contains `render.yaml`. Render uses it as a Blueprint, so
+most settings are already defined.
 
-Settings:
+### 1.1 Create the Blueprint
 
-| Setting | Value |
+1. Go to <https://dashboard.render.com>.
+2. Click **New +** > **Blueprint**.
+3. Connect the GitHub account that owns `Resumeshied`.
+4. Select the repository.
+5. Select branch `main`.
+6. Give the Blueprint a name, for example `resumeshield`.
+7. Click **Apply**.
+
+Render will create one web service:
+
+| Setting | Value from `render.yaml` |
 | --- | --- |
-| Root Directory / working directory | `server` |
-| Runtime | Node.js 20 or newer |
-| Install command | `npm ci` |
-| Start command | `npm start` |
+| Service name | `resumeshield-api` |
+| Runtime | Node.js 20 |
+| Root Directory | `server` |
+| Build Command | `npm ci` |
+| Start Command | `npm start` |
+| Health Check Path | `/api/health` |
 | Instance count | 1 |
+| Plan | `1c-2g` |
 
-Environment variables:
+### 1.2 Set the one required value
 
-| Name | Example | Notes |
+Render will prompt for `CLIENT_ORIGIN` because it is marked `sync: false`.
+
+Enter the exact Vercel frontend origin:
+
+```text
+https://<your-project>.vercel.app
+```
+
+Do not add:
+
+- a path
+- a trailing slash
+- a wildcard
+- `http://` instead of `https://`
+
+Wrong:
+
+```text
+https://resumeshield.vercel.app/
+https://resumeshield.vercel.app/dashboard
+*
+```
+
+Right:
+
+```text
+https://resumeshield.vercel.app
+```
+
+### 1.3 Why the plan matters
+
+Do **not** use the Render Free plan for this service.
+
+Free instances sleep after inactivity. ResumeShield keeps sessions in memory,
+so a sleeping/restarting instance destroys active sessions and users will see
+`SESSION_EXPIRED`.
+
+The Blueprint uses `1c-2g` and one instance. Keep `numInstances: 1` unless
+session storage is redesigned.
+
+Do not attach a persistent disk. Temporary PDF files are intentionally
+short-lived.
+
+### 1.4 Environment variables
+
+These are set by `render.yaml`:
+
+| Name | Value | Notes |
 | --- | --- | --- |
+| `NODE_VERSION` | `20` | Matches the required Node runtime. |
 | `NODE_ENV` | `production` | Enables production config checks. |
-| `CLIENT_ORIGIN` | `https://resumeshield.vercel.app` | Exact Vercel origin, no wildcard, no path, no trailing slash. |
-| `PORT` | `4000` | Or let the host inject `PORT`; the app reads it. |
 | `SESSION_TTL_SECONDS` | `1800` | 30 minutes. |
 | `MAX_UPLOAD_BYTES` | `10485760` | 10 MiB. |
 | `TEMP_ROOT` | `/tmp/resumeshield` | Short-lived processing files only. |
-| `LOG_LEVEL` | `info` | Never log file names, resume text, or detection values. |
+| `LOG_LEVEL` | `info` | Never log resume text, file names, or values. |
+| `CLIENT_ORIGIN` | Set in dashboard | Exact Vercel origin. |
 
-Deploy, then verify health:
+Do **not** set `PORT`. Render injects its own `PORT` value and the app reads it.
+
+### 1.5 Verify the API
+
+Wait until Render shows the service as **Live**. Then run:
 
 ```bash
-curl https://<api-domain>/api/health
+curl https://resumeshield-api.onrender.com/api/health
 ```
 
 Expected: HTTP 200 with `success: true` and `data.status` equal to `"ok"`.
 
-If the API host provides a public URL only after first deploy, copy that URL and
-return to update `CLIENT_ORIGIN` if needed.
+Your real URL may differ. Copy the `onrender.com` URL from the Render service
+header.
 
 ## 2. Deploy the frontend to Vercel
 
@@ -77,12 +142,15 @@ Environment variable:
 
 | Name | Value |
 | --- | --- |
-| `VITE_API_URL` | `https://<api-domain>/api` |
+| `VITE_API_URL` | `https://resumeshield-api.onrender.com/api` |
 
 Important: Vite inlines environment variables at build time. Set
 `VITE_API_URL` before the build, then redeploy after changing it.
 
 Do not set it to `https://<api-domain>` without `/api`.
+
+Use the real `onrender.com` URL shown in your Render service header. It may not
+be exactly `resumeshield-api.onrender.com` if that name is already taken.
 
 ## 3. Verify the deployed flow
 
@@ -130,6 +198,8 @@ Expected: 29 pass, 0 fail, and a successful Vite build into `client/dist`.
 | CORS error in browser console | `CLIENT_ORIGIN` does not exactly match the Vercel origin | Set it to the exact origin, e.g. `https://resumeshield.vercel.app`. |
 | Preview deployment is blocked by CORS | API allows only the production Vercel origin | Use a staging API with the preview origin, or temporarily set `CLIENT_ORIGIN` to that preview URL. |
 | `SESSION_EXPIRED` immediately after upload | API restarted, scaled to multiple instances, or several workers are running | Use one API instance. Sessions are in-memory by design. |
+| `SESSION_EXPIRED` after some idle time on Render | Free instance slept and restarted | Upgrade from Free to the `1c-2g` plan in `render.yaml`. |
+| Render deploy stays in "Starting" or fails health check | App is not listening on Render's injected `PORT`, or build used the wrong directory | Leave `PORT` unset, keep Root Directory `server`, and use `npm ci` / `npm start`. |
 | `FILE_TOO_LARGE` on the API host | Reverse proxy limit is below `MAX_UPLOAD_BYTES` | Raise the host/proxy body limit to at least 10 MiB, or lower `MAX_UPLOAD_BYTES`. |
 | API fails to install `canvas` or `mupdf` | Node version too old or wrong install directory | Use Node 20+, run `npm ci` inside `server/`. |
 | App works locally but not in production | Old Vite build without the API URL | Rebuild/redeploy after setting environment variables. |

@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: resumeshield-api
+    runtime: node
+    rootDir: server
+    plan: 1c-2g
+    numInstances: 1
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: SESSION_TTL_SECONDS
+        value: "1800"
+      - key: MAX_UPLOAD_BYTES
+        value: "10485760"
+      - key: TEMP_ROOT
+        value: /tmp/resumeshield
+      - key: LOG_LEVEL
+        value: info
