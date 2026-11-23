@@ -41,10 +41,10 @@ export function PagePreview({ previewUrl, loading, pageGeometry, overlays = [], 
 
   return (
     <div className="space-y-2">
-      <div className="relative inline-block w-full overflow-hidden rounded-md border border-border bg-white shadow-card">
+      <div className="relative inline-block w-full overflow-hidden rounded-xl border border-border bg-card shadow-card">
         {loading && (
-          <div className="absolute inset-0 z-20 flex aspect-[3/4] items-center justify-center bg-muted/40">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
+          <div className="absolute inset-0 z-20 flex aspect-[3/4] items-center justify-center bg-muted/60 backdrop-blur-sm">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
           </div>
         )}
 
@@ -65,8 +65,8 @@ export function PagePreview({ previewUrl, loading, pageGeometry, overlays = [], 
           />
         ) : (
           !loading && (
-            <div className="flex aspect-[3/4] flex-col items-center justify-center gap-2 text-muted-foreground">
-              <MousePointer2 className="h-8 w-8" aria-hidden="true" />
+            <div className="flex aspect-[3/4] flex-col items-center justify-center gap-2 bg-gradient-to-br from-primary/5 to-accent/5 text-muted-foreground">
+              <MousePointer2 className="h-8 w-8 text-primary" aria-hidden="true" />
               <p className="px-6 text-center text-xs">
                 A page preview is available for extracted PDF documents.
               </p>
@@ -97,14 +97,14 @@ export function PagePreview({ previewUrl, loading, pageGeometry, overlays = [], 
 
         {previewUrl && draft && (
           <div
-            className="pointer-events-none absolute z-10 rounded-sm border-2 border-dashed border-sky-500 bg-sky-400/20"
+            className="pointer-events-none absolute z-10 rounded-sm border-2 border-dashed border-accent bg-accent/20"
             style={bboxToPercent(draft, pageWidth, pageHeight)}
           />
         )}
       </div>
 
       {previewUrl && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs leading-relaxed text-muted-foreground">
           Drag on the page to mark an additional area to hide. Existing highlights show accepted
           matches only.
         </p>

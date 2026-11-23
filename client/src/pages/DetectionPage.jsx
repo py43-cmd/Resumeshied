@@ -27,10 +27,16 @@ import {
 
 function StatCard({ label, value, tone = 'default' }) {
   return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className={`mt-1 text-2xl font-semibold ${tone}`}>{value}</p>
+    <Card className="relative overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
+      />
+      <CardContent className="p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          {label}
+        </p>
+        <p className={`mt-2 text-2xl font-semibold tracking-tight ${tone}`}>{value}</p>
       </CardContent>
     </Card>
   );
@@ -149,9 +155,11 @@ export default function DetectionPage() {
     <div>
       <Stepper current={2} />
 
-      <div className="mb-6 space-y-2">
+      <div className="mb-7 space-y-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight">Review detected information</h1>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Review detected information
+          </h1>
           <Badge variant={phase === 'ready' ? 'success' : 'muted'}>
             {phase === 'ready' ? 'Detection complete' : 'Local detection'}
           </Badge>
@@ -159,7 +167,8 @@ export default function DetectionPage() {
         <p className="text-sm text-muted-foreground">
           {documentInfo?.originalName ? (
             <>
-              Document: <span className="font-medium text-foreground">{documentInfo.originalName}</span>
+              Document:{' '}
+              <span className="font-medium text-foreground">{documentInfo.originalName}</span>
             </>
           ) : (
             'Loading document details…'
@@ -247,9 +256,11 @@ export default function DetectionPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex aspect-[3/4] flex-col items-center justify-center gap-2 rounded-md border border-border bg-muted/30 text-center">
-                  <FileSearch className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-                  <p className="px-4 text-xs text-muted-foreground">
+                <div className="flex aspect-[3/4] flex-col items-center justify-center gap-3 rounded-xl border border-border bg-gradient-to-br from-primary/5 to-accent/5 text-center">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/25">
+                    <FileSearch className="h-7 w-7" aria-hidden="true" />
+                  </span>
+                  <p className="px-4 text-xs leading-relaxed text-muted-foreground">
                     {documentInfo?.extraction?.pageCount ?? 'Unknown'} page(s) ·{' '}
                     {positionedCount} positioned match(es)
                   </p>
@@ -292,7 +303,7 @@ export default function DetectionPage() {
             </Card>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 shadow-card">
+          <div className="surface-panel mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-5">
             <p className="text-sm text-muted-foreground">
               {summary.undecided > 0
                 ? `${summary.undecided} match${summary.undecided === 1 ? '' : 'es'} still need your decision.`

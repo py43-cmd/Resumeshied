@@ -47,16 +47,6 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        entity: {
-          name: '#FEF3C7',
-          email: '#EDE9FE',
-          phone: '#FCE7F3',
-          link: '#E0F2FE',
-          address: '#CCFBF1',
-          dob: '#FFEDD5',
-          photo: '#E0E7FF',
-          manual: '#FEE2E2',
-        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -66,9 +56,14 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
+      backgroundImage: {
+        'accent-sheen':
+          'linear-gradient(110deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 55%, hsl(258 90% 72%) 100%)',
+      },
       boxShadow: {
-        card: '0 1px 2px rgba(15, 23, 42, 0.05)',
-        panel: '0 10px 30px rgba(15, 23, 42, 0.08)',
+        card: 'inset 0 1px 0 rgba(255,255,255,0.035), 0 12px 40px rgba(0,0,0,0.32)',
+        panel: 'inset 0 1px 0 rgba(255,255,255,0.045), 0 28px 80px rgba(0,0,0,0.55)',
+        glow: '0 0 0 1px hsl(var(--primary) / 0.22), 0 18px 50px hsl(var(--primary) / 0.14)',
       },
     },
   },

@@ -51,12 +51,14 @@ export function FileValidationCard({
   const busy = ['validating', 'uploading', 'extracting'].includes(phase);
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4 shadow-card">
+    <div className="surface-panel rounded-2xl p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <FileText className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/25">
+            <FileText className="h-5 w-5" aria-hidden="true" />
+          </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{file.name}</p>
+            <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
             <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
           </div>
         </div>
@@ -78,7 +80,7 @@ export function FileValidationCard({
       </div>
 
       {(phase === 'uploading' || phase === 'extracting') && (
-        <div className="mt-4 space-y-2">
+        <div className="mt-5 space-y-2">
           <Progress value={phase === 'extracting' ? 100 : progress} />
           <p className="text-xs text-muted-foreground">
             {phase === 'uploading' ? `${progress}% uploaded` : 'Extracting text and page layout…'}
@@ -87,7 +89,7 @@ export function FileValidationCard({
       )}
 
       {phase === 'done' && ['ready', 'needs_ocr'].includes(extraction?.status) && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-sm">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-sm">
           <span className="text-muted-foreground">
             {extraction.pageCount ?? 'Unknown'} page
             {extraction.pageCount === 1 ? '' : 's'} detected ·{' '}

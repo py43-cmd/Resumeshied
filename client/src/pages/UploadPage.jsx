@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AlertTriangle, LockKeyhole } from 'lucide-react';
+import { AlertTriangle, LockKeyhole, ShieldCheck } from 'lucide-react';
 
 import { Stepper } from '../components/shared/Stepper.jsx';
 import { PrivacyNote } from '../components/shared/PrivacyNote.jsx';
 import { Dropzone } from '../components/upload/Dropzone.jsx';
 import { FileValidationCard } from '../components/upload/FileValidationCard.jsx';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert.jsx';
+import { Badge } from '../components/ui/Badge.jsx';
 import {
   createSession,
   destroySession,
@@ -112,10 +113,17 @@ export default function UploadPage() {
     <div>
       <Stepper current={1} />
 
-      <div className="mb-6 space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Upload your resume</h1>
-        <p className="text-muted-foreground">
-          We create a temporary, private processing session for each upload.
+      <div className="mb-7 space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Upload your resume</h1>
+          <Badge variant="accent" className="gap-2">
+            <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+            Step 1 of 4
+          </Badge>
+        </div>
+        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+          We create a temporary, private processing session for each upload. Nothing is stored
+          permanently, and resume values are masked before they reach this interface.
         </p>
       </div>
 
@@ -177,7 +185,9 @@ export default function UploadPage() {
           )}
         </div>
 
-        <PrivacyNote />
+        <div className="self-start lg:sticky lg:top-24">
+          <PrivacyNote />
+        </div>
       </div>
     </div>
   );

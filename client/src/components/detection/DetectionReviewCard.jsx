@@ -18,12 +18,12 @@ export function DetectionReviewCard({ detection, decision = 'undecided', onDecis
 
   return (
     <article
-      className={`rounded-lg border p-4 transition-all ${
+      className={`rounded-xl border p-4 transition-all duration-300 ${
         decision === 'accepted'
-          ? 'border-rose-300 bg-rose-50/60 ring-1 ring-rose-200'
+          ? 'border-destructive/40 bg-destructive/10 ring-1 ring-destructive/20'
           : decision === 'rejected'
             ? 'border-border bg-muted/20 opacity-70'
-            : 'border-border bg-card'
+            : 'border-border bg-card/70 hover:border-primary/25 hover:shadow-card'
       }`}
       data-detection-id={detection.detectionId}
     >
@@ -38,7 +38,7 @@ export function DetectionReviewCard({ detection, decision = 'undecided', onDecis
               </Badge>
             )}
             {decision === 'accepted' && (
-              <Badge variant="destructive" className="gap-1 border-transparent bg-black text-white">
+              <Badge variant="destructive" className="gap-1">
                 <Check className="h-3 w-3" aria-hidden="true" />
                 Marked to hide
               </Badge>
@@ -48,17 +48,14 @@ export function DetectionReviewCard({ detection, decision = 'undecided', onDecis
           </div>
 
           {decision === 'accepted' ? (
-            <p
-              className="inline-block max-w-full select-none break-all rounded-sm bg-black px-1.5 py-0.5 font-mono text-sm text-black"
-              title="This value is marked to hide"
-            >
+            <p className="masked-value text-sm" title="This value is marked to hide">
               {detection.maskedValue}
             </p>
           ) : (
             <p className="break-all font-mono text-sm text-foreground">{detection.maskedValue}</p>
           )}
 
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
             {pageLabel} · {methodLabel(detection.method)} · {confidencePercent(detection.confidence)}{' '}
             confidence
             {(detection.bboxes?.length ?? 0) > 0 && ` · ${detection.bboxes.length} position${
@@ -67,7 +64,7 @@ export function DetectionReviewCard({ detection, decision = 'undecided', onDecis
           </p>
 
           {detection.reason && (
-            <p className="text-xs text-muted-foreground">{detection.reason}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">{detection.reason}</p>
           )}
         </div>
 

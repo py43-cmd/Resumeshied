@@ -24,23 +24,37 @@ export function Dropzone({ onFile, disabled = false }) {
       onDragLeave={() => setIsDragging(false)}
       onDrop={handleDrop}
       className={cn(
-        'flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center transition-colors',
-        isDragging ? 'border-primary bg-primary/5' : 'border-border bg-muted/30',
+        'group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-card/60 p-12 text-center shadow-card backdrop-blur-xl transition-all duration-300 hover:border-primary/40 hover:shadow-glow',
+        isDragging && 'border-primary bg-primary/10 shadow-glow',
         disabled && 'pointer-events-none opacity-60',
       )}
     >
-      <UploadCloud className="mb-4 h-10 w-10 text-primary" aria-hidden="true" />
-      <p className="font-medium">Drop your resume here</p>
-      <p className="mt-1 text-sm text-muted-foreground">or</p>
+      <span
+        className={cn(
+          'mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/25 transition-transform duration-300',
+          !disabled && 'group-hover:scale-105',
+          isDragging && 'scale-110 bg-primary/20',
+        )}
+      >
+        <UploadCloud className="h-7 w-7" aria-hidden="true" />
+      </span>
+      <p className="text-lg font-semibold tracking-tight">Drop your resume here</p>
+      <p className="mt-1 text-sm text-muted-foreground">or choose a file from your device</p>
       <button
         type="button"
-        className="mt-2 rounded-md text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="mt-3 rounded-lg px-2 py-1 text-sm font-semibold text-primary underline-offset-4 transition-colors hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         onClick={() => inputRef.current?.click()}
         disabled={disabled}
       >
         browse files
       </button>
-      <p className="mt-4 text-xs text-muted-foreground">PDF or DOCX · up to 10 MB</p>
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+        <span className="rounded-full border border-border bg-muted/50 px-2.5 py-1">PDF or DOCX</span>
+        <span className="rounded-full border border-border bg-muted/50 px-2.5 py-1">Up to 10 MB</span>
+        <span className="rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-primary">
+          Private session
+        </span>
+      </div>
       <input
         ref={inputRef}
         type="file"

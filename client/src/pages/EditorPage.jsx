@@ -45,10 +45,16 @@ import { cn } from '../lib/utils.js';
 
 function StatCard({ label, value, tone }) {
   return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className={cn('mt-1 text-2xl font-semibold', tone)}>{value}</p>
+    <Card className="relative overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent"
+      />
+      <CardContent className="p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          {label}
+        </p>
+        <p className={cn('mt-2 text-2xl font-semibold tracking-tight', tone)}>{value}</p>
       </CardContent>
     </Card>
   );
@@ -248,9 +254,9 @@ export default function EditorPage() {
     <div>
       <Stepper current={3} />
 
-      <div className="mb-6 space-y-2">
+      <div className="mb-7 space-y-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight">Choose what to hide</h1>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Choose what to hide</h1>
           <Badge variant={plan?.planStatus === 'ready' ? 'success' : 'muted'}>
             {planLabel(plan?.planStatus ?? 'pending')}
           </Badge>
@@ -258,7 +264,8 @@ export default function EditorPage() {
         <p className="text-sm text-muted-foreground">
           {documentInfo?.originalName ? (
             <>
-              Document: <span className="font-medium text-foreground">{documentInfo.originalName}</span>
+              Document:{' '}
+              <span className="font-medium text-foreground">{documentInfo.originalName}</span>
             </>
           ) : (
             'Loading document details…'
@@ -382,7 +389,7 @@ export default function EditorPage() {
                     onAddRegion={handleAddRegion}
                   />
                 ) : (
-                  <div className="flex aspect-[3/4] items-center justify-center rounded-md border border-border bg-muted/30 text-sm text-muted-foreground">
+                  <div className="flex aspect-[3/4] items-center justify-center rounded-xl border border-border bg-gradient-to-br from-primary/5 to-accent/5 px-6 text-center text-sm text-muted-foreground">
                     No coordinate preview for this file type.
                   </div>
                 )}
@@ -397,7 +404,7 @@ export default function EditorPage() {
                       .map((region) => (
                         <div
                           key={region.id}
-                          className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs"
+                          className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs"
                         >
                           <span className="font-mono">
                             ({region.bbox.x}, {region.bbox.y}) {region.bbox.width}×{region.bbox.height} pt
@@ -455,10 +462,12 @@ export default function EditorPage() {
                       <div
                         key={detection.detectionId}
                         className={cn(
-                          'rounded-lg border p-3',
+                          'rounded-xl border p-3 transition-all duration-300',
                           decision === 'rejected' && 'border-border bg-muted/20 opacity-70',
-                          decision === 'accepted' && 'border-black bg-neutral-900/5',
-                          decision === 'undecided' && 'border-border bg-card',
+                          decision === 'accepted' &&
+                            'border-destructive/40 bg-destructive/10 ring-1 ring-destructive/20',
+                          decision === 'undecided' &&
+                            'border-border bg-card/70 hover:border-primary/25 hover:shadow-card',
                         )}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -468,7 +477,7 @@ export default function EditorPage() {
                               {detection.needsReview && <Badge variant="warning">Confirm</Badge>}
                             </div>
                             {decision === 'accepted' ? (
-                              <p className="inline-block max-w-full select-none break-all rounded-sm bg-black px-1 py-0.5 font-mono text-xs text-black">
+                              <p className="masked-value text-xs" title="This value is marked to hide">
                                 {detection.maskedValue}
                               </p>
                             ) : (
@@ -517,7 +526,7 @@ export default function EditorPage() {
             </Card>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 shadow-card">
+          <div className="surface-panel mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-5">
             <div className="text-sm text-muted-foreground">
               {blockers.length > 0 ? (
                 <p>Resolve the privacy blockers above before continuing.</p>

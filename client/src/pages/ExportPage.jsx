@@ -84,7 +84,7 @@ export default function ExportPage() {
 
       <div className="mb-6 space-y-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight">Your sanitized resume</h1>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Your sanitized resume</h1>
           <Badge variant={phase === 'ready' ? 'success' : 'muted'}>
             {phase === 'ready' ? 'Ready to download' : 'Processing locally'}
           </Badge>
@@ -97,7 +97,7 @@ export default function ExportPage() {
       {phase === 'processing' && (
         <Card className="mt-6">
           <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden="true" />
             Rewriting the PDF and verifying the result locally…
           </CardContent>
         </Card>
@@ -132,10 +132,16 @@ export default function ExportPage() {
             </Alert>
           )}
 
-          <Card className="mt-6">
+          <Card className="mt-6 overflow-hidden">
+            <div
+              aria-hidden="true"
+              className="h-px bg-gradient-to-r from-transparent via-success/60 to-transparent"
+            />
             <CardHeader>
-              <div className="flex items-center gap-3">
-                <FileCheck2 className="h-6 w-6 text-success" aria-hidden="true" />
+              <div className="flex items-center gap-4">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-success/10 text-success ring-1 ring-success/25 shadow-glow">
+                  <FileCheck2 className="h-6 w-6" aria-hidden="true" />
+                </span>
                 <div>
                   <CardTitle>Redaction complete</CardTitle>
                   <CardDescription>
@@ -145,14 +151,17 @@ export default function ExportPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
               <ul className="space-y-2" aria-label="Verification checks">
                 {EXPORT_CHECKS.map((check) => {
                   const status = checkStatus(check, result, warningCodes);
                   const { Icon, className } = STATUS_ICONS[status];
 
                   return (
-                    <li key={check.key} className="flex items-start gap-2 text-sm text-foreground">
+                    <li
+                      key={check.key}
+                      className="flex items-start gap-3 rounded-lg border border-border bg-muted/25 px-3 py-2.5 text-sm text-foreground"
+                    >
                       <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${className}`} aria-hidden="true" />
                       <span>{check.label}</span>
                       {status !== 'pass' && (
@@ -166,7 +175,7 @@ export default function ExportPage() {
               </ul>
 
               {result.verification?.fidelity && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   Visual check compared{' '}
                   {result.verification.fidelity.comparedPixels.toLocaleString()} unchanged-area
                   pixels
@@ -176,9 +185,9 @@ export default function ExportPage() {
                 </p>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-4">
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <ShieldCheck className="h-4 w-4 text-success" aria-hidden="true" />
+              <div className="surface-panel flex flex-wrap items-center justify-between gap-4 rounded-2xl p-5">
+                <p className="flex items-center gap-3 text-sm text-muted-foreground">
+                  <ShieldCheck className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
                   Download link is private to this session and expires automatically.
                 </p>
                 <Button onClick={handleDownload} disabled={downloading}>
