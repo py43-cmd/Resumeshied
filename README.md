@@ -1,179 +1,667 @@
 # ResumeShield
 
-Privacy-first tool for removing personal information from resumes before sharing
-them for feedback.
+Privacy-first web application that finds and permanently removes personally
+identifiable information (PII) from resumes before they are shared for feedback.
+
+ResumeShield runs locally/on infrastructure you control: no database, no
+permanent upload storage, no external AI APIs, and no raw PII in browser
+responses or logs.
+
+---
+
+## Table of contents
+
+- [Status](#status)
+- [Architecture](#architecture)
+- [Technology stack](#technology-stack)
+- [Repository layout](#repository-layout)
+- [Prerequisites](#prerequisites)
+- [Local development](#local-development)
+- [Environment variables](#environment-variables)
+- [API reference](#api-reference)
+- [Privacy and security model](#privacy-and-security-model)
+- [Redaction and verification](#redaction-and-verification)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Engineering conventions](#engineering-conventions)
+- [Known limitations](#known-limitations)
+- [Troubleshooting](#troubleshooting)
+- [Roadmap and non-goals](#roadmap-and-non-goals)
+
+---
 
 ## Status
 
-- [x] Phase 1 — Product planning
-- [x] Phase 2 — UI/UX design + visual-preservation addendum
-- [x] Phase 3A — Backend foundation
-- [x] Phase 3B — Frontend foundation
-- [x] Phase 4 — Upload and extraction (4A session/upload, 4B extraction, 4C frontend flow)
-- [x] Phase 5 — PII detection (including local OCR)
-- [x] Phase 6 — Privacy editor
-- [x] Phase 7 — Native PDF redaction
-- [x] Phase 8 — Verification and visual QA
-- [x] Phase 9 — Testing
-- [ ] Phase 10 — Deployment (see `DEPLOYMENT.md`)
+| Area | Status |
+| --- | --- |
+| Product planning | Complete |
+| UI/UX and visual-preservation design | Complete |
+| Backend foundation | Complete |
+| Frontend foundation | Complete |
+| Upload and extraction | Complete |
+| PII detection, including local OCR | Complete |
+| Privacy editor | Complete |
+| Native PDF redaction | Complete |
+| Verification and visual QA | Complete |
+| Automated tests | Complete |
+| Deployment | In progress |
+
+Deployment state:
+
+- Render API is live at `https://resumeshied.onrender.com`.
+- `GET https://resumeshied.onrender.com/api/health` returned HTTP 200 with
+  `success: true` and `data.status: "ok"` on 2026-11-23.
+- Vercel frontend configuration is pending final environment setup and
+  end-to-end browser verification.
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the production runbook.
+
+---
+
+## Architecture
+
+Production topology:
+
+```text
+Browser
+   |
+   | HTTPS
+   v
+Vercel: React + Vite SPA
+   |
+   | VITE_API_URL=https://<render-service>.onrender.com/api
+   | X-Session-Token header on protected requests
+   v
+Render: Express API
+   |
+   |-- in-memory session map
+   |-- /tmp/resumeshield per-session directories
+   |-- pdfjs text/geometry extraction
+   |-- MuPDF native redaction + PNG rendering
+   `-- tesseract.js local OCR
+   |
+   v
+Sanitized PDF download (no-store)
+```
+
+The API is intentionally deployed as a long-running Node service, not as a
+Vercel Function. ResumeShield uses in-memory sessions and per-session temp
+directories across multiple requests. Serverless instances do not guarantee
+request affinity, so a function deployment can lose a session mid-flow.
+
+### Request lifecycle
+
+1. `POST /api/sessions` creates an opaque session ID and token.
+2. `POST /api/sessions/:sessionId/files` stores the uploaded file in a private
+   temp directory after MIME and magic-byte validation.
+3. `POST .../extract` uses pdfjs to obtain text items, page geometry, image
+   draw counts, and annotation counts. Raw text is never returned to the
+   browser.
+4. If no text layer exists, `POST .../ocr` runs local `tesseract.js` and marks
+   all OCR-derived detections as requiring human review.
+5. `POST .../detect` runs local rules and returns masked matches with page,
+   bounding boxes, confidence, category, and optional icon hints.
+6. `PUT .../redaction-plan` accepts only review decisions and manual boxes.
+   Matched values are server-owned and never accepted from the client.
+7. `POST .../redact` applies the plan with MuPDF and verifies that no approved
+   box still contains text.
+8. `GET .../download` re-checks the privacy verdict and streams the rewritten
+   PDF with `Cache-Control: no-store`.
+
+### Module boundaries
+
+| Layer | Location | Responsibility |
+| --- | --- | --- |
+| HTTP | `server/src/routes`, `server/src/controllers` | Routing, request validation, response envelopes |
+| Session | `server/src/sessions` | In-memory sessions, TTL, allowlisted public views |
+| Extraction | `server/src/services/extraction`, `server/src/services/pdf` | pdfjs text/geometry, local canvas setup, page rendering |
+| Detection | `server/src/services/detection` | Local PII rules, icon-aware association, image discovery |
+| Redaction | `server/src/services/redaction` | Privacy-safe plan, MuPDF coordinate redaction |
+| Verification | `server/src/services/verification` | Text-overlap hard gate and advisory pixel diff |
+| Client API | `client/src/lib/*Api.js` | Thin endpoint wrappers |
+| Client state | `client/src/context/SessionContext.jsx` | Session token lifecycle and stale-session recovery |
+| Client views | `client/src/pages`, `client/src/lib/*View.js` | UI state and presentation helpers |
+
+Canvas globals must be installed before any pdfjs-importing module is evaluated.
+This is handled by `server/src/services/pdf/nodeCanvasSetup.js`, which is the
+first import in `server/src/app.js`.
+
+---
+
+## Technology stack
+
+| Area | Choice | Notes |
+| --- | --- | --- |
+| Frontend | React 18, Vite 6, React Router 7 | JavaScript only, ESM |
+| Styling | Tailwind CSS 3, tailwindcss-animate, Radix Slot | Component utilities in `client/src/lib/utils.js` |
+| Client HTTP | axios | Single instance, envelope unwrapped in `client/src/lib/api.js` |
+| Backend | Express 4, Node.js 20+ | ESM, `"type": "module"` |
+| Security headers | helmet | `X-Powered-By` disabled |
+| CORS | cors | Exact origin allowlist; no wildcards in production |
+| Uploads | multer | Memory storage, magic-byte checks before disk write |
+| PDF text/geometry | `pdfjs-dist@4.10.38` | Legacy build path; do not upgrade to v6 on Node 20/22 |
+| PDF rewriting | `mupdf@1.28.6` | Official Artifex JS/WASM build; no native binary |
+| Canvas | `canvas`, `@napi-rs/canvas` | Required by pdfjs/MuPDF rendering paths |
+| OCR | `tesseract.js`, local `eng` data | No network OCR calls |
+| DOCX text | mammoth, jszip | DOCX can be inspected but not coordinate-redacted yet |
+| Tests | Node built-in `node --test` | No external test runner |
+
+---
 
 ## Repository layout
 
-```
+```text
 resumeshield/
-├── client/    React + Vite SPA (Phase 3B)
-└── server/    Express API (Phase 3A)
+├── client/
+│   ├── public/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── context/
+│   │   ├── lib/            # API wrappers and pure view helpers
+│   │   ├── pages/          # Upload, detection, editor, export flows
+│   │   ├── styles/
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   ├── tests/
+│   ├── .env.example
+│   ├── vercel.json         # Vite SPA fallback
+│   └── vite.config.js      # Dev proxy: /api -> localhost:4000
+├── server/
+│   ├── src/
+│   │   ├── config/
+│   │   ├── controllers/
+│   │   ├── middleware/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   │   ├── detection/
+│   │   │   ├── extraction/
+│   │   │   ├── ocr/
+│   │   │   ├── pdf/
+│   │   │   ├── redaction/
+│   │   │   └── verification/
+│   │   ├── sessions/
+│   │   ├── utils/
+│   │   ├── app.js           # Express app; no listener
+│   │   └── server.js        # Listener, sweeper, graceful shutdown
+│   ├── tests/
+│   └── .env.example
+├── DEPLOYMENT.md            # Production runbook
+├── render.yaml              # Render Blueprint for the API
+└── README.md
 ```
 
-## Quick start (backend)
+---
+
+## Prerequisites
+
+- Node.js 20 or newer.
+- npm.
+- A local PDF resume for manual verification.
+- Optional: a scanned PDF to exercise the local OCR path.
+
+There is no root `package.json`. Install and run dependencies inside `server/`
+and `client/` separately.
+
+---
+
+## Local development
+
+Clone:
+
+```bash
+git clone https://github.com/py43-cmd/Resumeshied.git
+cd Resumeshied
+```
+
+### Backend
+
+Windows:
+
+```bat
+cd server
+npm ci
+copy .env.example .env
+npm run dev
+```
+
+macOS/Linux:
 
 ```bash
 cd server
-npm install
-copy .env.example .env
+npm ci
+cp .env.example .env
 npm run dev
-npm test
 ```
 
-Health check: `GET http://localhost:4000/api/health`
+The API listens on `http://localhost:4000` by default.
 
-## Quick start (frontend)
+Health check:
+
+```bash
+curl http://localhost:4000/api/health
+```
+
+### Frontend
+
+In a second terminal:
 
 ```bash
 cd client
-npm install
-npm run dev        # http://localhost:5173
-npm test           # browser-side file validation tests
-npm run build      # production build into client/dist
+npm ci
+npm run dev
 ```
 
-The Vite dev server proxies `/api` to `http://localhost:4000`, so start the
-backend first. Create `client/.env` from `client/.env.example` only if the API
-is hosted elsewhere.
+Open `http://localhost:5173`.
 
-## Deployment
+The Vite dev server proxies `/api` to `http://localhost:4000`, so leave
+`VITE_API_URL=/api` during local development and start the backend first.
 
-Production uses the Vite SPA on Vercel and the Express API on a long-running
-Node host. Follow [`DEPLOYMENT.md`](DEPLOYMENT.md) for the exact Vercel project
-settings, environment variables, and verification checklist.
+### Scripts
 
-## Privacy rules for contributors
+| Directory | Command | Purpose |
+| --- | --- | --- |
+| `server/` | `npm run dev` | Start with nodemon |
+| `server/` | `npm start` | Start production listener |
+| `server/` | `npm test` | Run backend tests |
+| `client/` | `npm run dev` | Start Vite dev server |
+| `client/` | `npm run build` | Build into `client/dist` |
+| `client/` | `npm run preview` | Preview production build |
+| `client/` | `npm test` | Run client logic tests |
 
-1. Never log resume text, file names, detection values, or request bodies.
-2. Never store uploaded files outside a per-session temporary directory.
-3. Never send resume content to an external API.
-4. Never cover text with a rectangle and call it redaction.
+---
 
-## Redaction engine (Phase 7)
+## Environment variables
 
-Native redaction uses [MuPDF.js](https://mupdf.com/mupdf-js) (`mupdf` on npm),
-an official Artifex WebAssembly build that runs locally with no native
-dependencies or external calls.
+### Server (`server/.env`)
 
-- `POST /api/sessions/:sessionId/documents/:documentId/redact` applies the saved
-  plan using `applyRedactions()` with text removal, line-art removal, and image
-  pixel redaction.
-- The PDF is saved with `garbage=deduplicate,compress=yes,encrypt=none`, which
-  physically purges superseded objects — no incremental history is left behind.
-- Existing annotations, embedded files, and standard Info metadata are cleared.
-- `GET /api/sessions/:sessionId/redactions/:redactionId/download` returns the
-  rewritten PDF with `no-store` headers; both endpoints re-check the privacy
-  plan before proceeding.
-- Privacy failures (blocked plan, non-PDF input) return HTTP 422 and block the
-  download. Fidelity issues (page count or dimension drift) warn but still allow
-  the download.
+| Name | Default | Description |
+| --- | --- | --- |
+| `NODE_ENV` | `development` | `production` enables strict origin checks. |
+| `PORT` | `4000` | Listener port. Do not set on Render; Render injects it. |
+| `LOG_LEVEL` | `info` | Structured logging level. |
+| `CLIENT_ORIGIN` | `http://localhost:5173` | Exact browser origin allowed by CORS. |
+| `SESSION_TTL_SECONDS` | `1800` | Session lifetime; temp files are deleted on expiry. |
+| `MAX_UPLOAD_BYTES` | `10485760` | Per-file upload cap (10 MiB). |
+| `TEMP_ROOT` | OS temp dir | Parent directory for per-session folders. |
 
-### Verification and visual QA (Phase 8)
+`CLIENT_ORIGIN` must not contain `*` when `NODE_ENV=production`.
 
-Every redacted file is checked locally before it is stored:
+### Client (`client/.env`)
 
-- **Privacy (hard gate).** The rewritten PDF is re-extracted with pdfjs. If any
+| Name | Local value | Production value |
+| --- | --- | --- |
+| `VITE_API_URL` | `/api` | `https://<render-service>.onrender.com/api` |
+
+Vite inlines `VITE_*` variables at build time. Change the value **before**
+building, then redeploy.
+
+---
+
+## API reference
+
+Base URL:
+
+```text
+http://localhost:4000/api
+```
+
+Production base URL:
+
+```text
+https://resumeshied.onrender.com/api
+```
+
+### Response envelope
+
+Success:
+
+```json
+{
+  "success": true,
+  "data": {},
+  "meta": {
+    "requestId": "uuid-or-request-id",
+    "sessionExpiresInSeconds": 1800
+  }
+}
+```
+
+Error:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "SESSION_TOKEN_REQUIRED",
+    "message": "A session token is required."
+  },
+  "meta": {
+    "requestId": "uuid-or-request-id"
+  }
+}
+```
+
+`details` may be present for 4xx errors. Non-operational 5xx errors intentionally
+hide internal messages.
+
+### Authentication
+
+All routes except `GET /api/health` and `POST /api/sessions` require:
+
+```text
+X-Session-Token: <token returned by createSession>
+```
+
+The browser client injects this header through an axios interceptor. Downloads
+and page previews also use the header; the token is never placed in a URL.
+
+### Endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/health` | Liveness and service metadata |
+| `POST` | `/api/sessions` | Create a short-lived session |
+| `GET` | `/api/sessions/:sessionId` | Read session state and remaining TTL |
+| `DELETE` | `/api/sessions/:sessionId` | Destroy session and delete temp files |
+| `POST` | `/api/sessions/:sessionId/files` | Upload one PDF or DOCX as multipart `file` |
+| `GET` | `/api/sessions/:sessionId/documents/:documentId` | Read document status |
+| `POST` | `/api/sessions/:sessionId/documents/:documentId/extract` | Extract text and geometry |
+| `POST` | `/api/sessions/:sessionId/documents/:documentId/ocr` | Run local OCR on image-only PDFs |
+| `POST` | `/api/sessions/:sessionId/documents/:documentId/detect` | Run PII detection |
+| `GET` | `/api/sessions/:sessionId/documents/:documentId/detections` | Read the last detection result |
+| `GET` | `/api/sessions/:sessionId/documents/:documentId/pages/:pageNumber/preview?scale=1.5` | Render an original page as PNG |
+| `GET` | `/api/sessions/:sessionId/documents/:documentId/redaction-plan` | Read the saved plan |
+| `PUT` | `/api/sessions/:sessionId/documents/:documentId/redaction-plan` | Save review decisions and manual boxes |
+| `POST` | `/api/sessions/:sessionId/documents/:documentId/redact` | Apply the saved plan |
+| `GET` | `/api/sessions/:sessionId/redactions/:redactionId/download` | Download the sanitized PDF |
+
+Binary endpoints return `Cache-Control: no-store` and
+`X-Content-Type-Options: nosniff`.
+
+### Save plan payload
+
+The server never accepts detected values from the browser. It only accepts
+decisions keyed by server-owned detection IDs and manual geometry.
+
+```json
+{
+  "decisions": {
+    "7b1f...": "accepted",
+    "c02a...": "rejected",
+    "e991...": "undecided"
+  },
+  "manualRegions": [
+    {
+      "pageNumber": 1,
+      "bbox": { "x": 72, "y": 96, "width": 180, "height": 14 }
+    }
+  ]
+}
+```
+
+Accepted decisions: `accepted`, `rejected`, `undecided`. `undecided` produces a
+privacy blocker rather than a validation failure.
+
+### Detection fields
+
+Each detection contains:
+
+```text
+detectionId, type, method, confidence, pageNumber, bboxes,
+maskedValue, needsReview
+```
+
+Optional fields:
+
+```text
+reason, iconContext, iconHints, iconContextSources, iconDistancePoints
+```
+
+`maskedValue` is the only value representation sent to the browser. Raw matched
+PII never reaches the public view layer.
+
+---
+
+## Privacy and security model
+
+1. **No permanent storage.** Uploads live only in a per-session temp directory.
+   Sessions and files disappear on expiry, explicit destroy, or process restart.
+2. **No PII in logs.** Access logs are allowlisted to timestamp, event, request
+   ID, method, path, status, and duration. No query strings, IPs, bodies, file
+   names, or detection values.
+3. **No raw PII to the browser.** Public views use allowlists. Detection responses
+   include only `maskedValue`, category, page, box, confidence, and review state.
+4. **No external inference.** Detection rules, OCR, extraction, and redaction all
+   run locally. No resume content is sent to a third-party API.
+5. **Verified file types.** Uploads are checked for extension, MIME type, and
+   magic bytes before being written to disk.
+6. **Private binaries.** Page previews and downloads require `X-Session-Token`
+   and are marked `no-store`.
+7. **Native redaction only.** Text and image pixels are removed from the PDF
+   object stream; black rectangles over recoverable text are not used.
+8. **Privacy gate.** If verification finds text remaining in an approved box,
+   the redacted file is not stored and download is blocked.
+
+CORS is configured from `CLIENT_ORIGIN`. Production requires one exact origin.
+
+---
+
+## Redaction and verification
+
+### Redaction
+
+`POST .../redact` applies the saved plan using MuPDF:
+
+- text removal, line-art removal, and image pixel redaction
+- save options: `garbage=deduplicate,compress=yes,encrypt=none,regenerate-id`
+- removal of existing annotations, embedded files, and standard Info metadata
+- coordinate-based edits that preserve page dimensions, fonts, layout, and
+  unrelated graphics
+
+Privacy failures such as a blocked plan or non-PDF input return HTTP 422.
+Fidelity failures warn but do not block the download.
+
+### Verification
+
+Every redacted file is checked before storage:
+
+- **Privacy — hard gate.** The rewritten PDF is re-extracted with pdfjs. If a
   text item substantially overlaps an approved box, the operation returns
-  `TEXT_REMAINS_IN_BOX` (HTTP 422) and the file is **never stored**. The download
-  endpoint also re-checks the recorded privacy verdict.
-- **Fidelity (advisory).** Original and redacted pages are rendered to raw RGB
-  pixels with MuPDF and compared outside the approved boxes. A change there
-  produces `VISUAL_DIFF_OUTSIDE_BOXES`, which the UI shows as a warning but does
-  **not** block download.
+  `TEXT_REMAINS_IN_BOX` (HTTP 422) and the file is never stored. The download
+  endpoint re-checks the recorded verdict.
+- **Fidelity — advisory.** Original and redacted pages are rendered to raw RGB
+  pixels with MuPDF and compared outside approved boxes. A change produces
+  `VISUAL_DIFF_OUTSIDE_BOXES`, which the UI shows as a warning but does not block
+  download.
 
-The visual comparison pads each box by up to 25% of its height (minimum 3pt)
-because MuPDF clears whole glyph boxes, including descenders that extend past
-pdfjs's reported text box. Only counts and codes are stored — never text.
+Boxes are padded by up to 25% of their height (minimum 3pt) because MuPDF clears
+whole glyph boxes, including descenders beyond the pdfjs-reported box. Only
+counts and codes are stored, never text.
 
-The response includes `data.verification.privacy` and `data.verification.fidelity`
-with statuses and pixel counts, and the export page renders one status row per
-check.
+Responses include `data.verification.privacy` and
+`data.verification.fidelity`.
 
-### Known limitations
+---
 
-- A manual box that misses a line entirely cannot be detected by geometry alone
-  (there is no approved box to compare against). Review the preview carefully.
-- XMP metadata and AcroForm field values are not yet cleared. If a document uses
-  those features, treat the output as unverified.
-- DOCX files require conversion to PDF before coordinate redaction; until then
-  the redact endpoint rejects them with `PDF_REQUIRED`.
-- Visual comparison assumes unrotated pages; heavily rotated or unusual page
-  geometry may report `VISUAL_CHECK_UNAVAILABLE`.
+## Testing
 
-## Testing (Phase 9)
-
-Run both suites from the repository root. Each `node --test` file runs in its
-own process, so the short-TTL expiry test cannot affect the other suites.
+Run both suites from the repository root:
 
 ```bash
-cd server && npm test       # expected: 57 tests, 57 pass, 0 fail
-cd ../client && npm test    # expected: 29 tests, 29 pass, 0 fail
-cd ../client && npm run build
+cd server
+npm ci
+npm test
 ```
 
-### What is covered
+Expected: **57 pass, 0 fail**.
+
+```bash
+cd ../client
+npm ci
+npm test
+npm run build
+```
+
+Expected: **29 pass, 0 fail**, followed by a successful Vite build into
+`client/dist`.
+
+### Coverage map
 
 | Area | File | Key assertions |
 | --- | --- | --- |
-| API envelope / routing | `server/tests/health.test.js` | request IDs, 404 envelope |
-| Sessions & uploads | `server/tests/session.test.js` | token auth, MIME/signature checks, size limit, folder cleanup |
-| Expiry | `server/tests/session-expiry.test.js` | 1s TTL via env, `SESSION_EXPIRED`, temp folder deleted |
-| Extraction | `server/tests/extraction.test.js` | geometry, OCR handoff, no text in responses |
-| Detection | `server/tests/detection.test.js` | masked values, page-accurate bboxes, no raw PII |
-| OCR | `server/tests/ocr.test.js` | local tesseract, mandatory human review |
+| API envelope and routing | `server/tests/health.test.js` | Request IDs, 404 envelope |
+| Sessions and uploads | `server/tests/session.test.js` | Token auth, MIME/signature checks, size limit, folder cleanup |
+| Expiry | `server/tests/session-expiry.test.js` | 1s TTL via env, `SESSION_EXPIRED`, temp folder deletion |
+| Extraction | `server/tests/extraction.test.js` | Geometry, OCR handoff, no text in responses |
+| Detection | `server/tests/detection.test.js` | Masked values, page-accurate boxes, no raw PII |
+| OCR | `server/tests/ocr.test.js` | Local tesseract, mandatory human review |
 | Editor | `server/tests/editor.test.js` | PNG preview, privacy-safe plan, blocked plans |
-| Redaction | `server/tests/redaction.test.js` | permanent removal, private download, privacy gates |
+| Redaction | `server/tests/redaction.test.js` | Permanent removal, private download, privacy gates |
 | Verification | `server/tests/verification.test.js` | `TEXT_REMAINS_IN_BOX`, `VISUAL_DIFF_OUTSIDE_BOXES` |
-| End-to-end | `server/tests/e2e.test.js` | full 2-page pipeline, download-time plan re-check |
-| Log privacy | `server/tests/logging.test.js` | allowlist drops filenames and values |
-| Client | `client/tests/*.test.js` | validation, view helpers, export verdict logic |
+| End-to-end | `server/tests/e2e.test.js` | Full two-page pipeline, download-time plan re-check |
+| Log privacy | `server/tests/logging.test.js` | Allowlist drops filenames and values |
+| Client | `client/tests/*.test.js` | Validation, view helpers, export verdict logic |
 
-Run a single file while debugging:
+Run one file while debugging:
 
 ```bash
 cd server && node --test tests/e2e.test.js
 cd client && node --test tests/exportView.test.js
 ```
 
-### Expected output notes
+### Test notes
 
 - `node --test` prints a `# tests / # pass / # fail / # duration_ms` summary.
-  Exit code is `0` only when everything passes.
+  Exit code is `0` only when all assertions pass.
 - MuPDF may print warnings such as
-  `getPathGenerator - ignoring character: "Helvetica_path_R."` during page
-  rendering tests. These come from the minimal hand-built test fixture's font
-  mapping and are harmless; they do not indicate a failed assertion.
-- `SESSION_TTL_SECONDS` is intentionally set to `1` inside
-  `session-expiry.test.js` using a dynamic import. Do not set it globally.
+  `getPathGenerator - ignoring character: "Helvetica_path_R."` while rendering
+  the minimal hand-built test fixture. These are harmless and do not indicate a
+  failed assertion.
+- `SESSION_TTL_SECONDS=1` is set only inside `session-expiry.test.js` via a
+  dynamic import. Do not set it globally.
+- Keep pure logic in `client/src/lib/*.js`. The Node test runner cannot import
+  JSX directly.
 
-### Common errors
+---
+
+## Deployment
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the complete runbook.
+
+Summary:
+
+| Component | Platform | Root | Build | Start/Output |
+| --- | --- | --- | --- | --- |
+| API | Render | `server` | `npm ci` | `npm start` |
+| SPA | Vercel | `client` | `npm run build` | `dist` |
+
+Render is defined by [`render.yaml`](render.yaml):
+
+- Node 20, plan `1c-2g`, one instance
+- health check `/api/health`
+- `CLIENT_ORIGIN` is the only prompted value
+- do not set `PORT`
+- do not attach a persistent disk
+- do not use the Free plan: sleeping destroys in-memory sessions
+
+Vercel uses [`client/vercel.json`](client/vercel.json) for SPA rewrites.
+
+Required production environment variables:
+
+```bash
+# Render
+NODE_ENV=production
+CLIENT_ORIGIN=https://<vercel-domain>
+SESSION_TTL_SECONDS=1800
+MAX_UPLOAD_BYTES=10485760
+TEMP_ROOT=/tmp/resumeshield
+LOG_LEVEL=info
+
+# Vercel
+VITE_API_URL=https://<render-service>.onrender.com/api
+```
+
+Current API health check:
+
+```bash
+curl https://resumeshied.onrender.com/api/health
+```
+
+---
+
+## Engineering conventions
+
+- JavaScript only. No TypeScript.
+- ESM modules in both `client/` and `server/`.
+- Every API response goes through `sendSuccess` or `sendError`.
+- Public data goes through view allowlists in `server/src/sessions/*Views.js`.
+- Session auth is header-based: `X-Session-Token`.
+- Client API calls are thin wrappers in `client/src/lib/*Api.js`.
+- Pure client logic belongs in `client/src/lib/*.js` so it is testable with
+  `node --test`.
+- No file names, resume text, detection values, or request bodies in logs.
+- No external API calls with document content.
+- Privacy failures block. Fidelity failures warn.
+- When changing detection or redaction behavior, update the matching test file
+  in the same change.
+
+---
+
+## Known limitations
+
+- A manual box that misses a line entirely cannot be detected by geometry alone.
+  Review the preview carefully.
+- XMP metadata and AcroForm field values are not yet cleared. Treat documents
+  using those features as unverified.
+- DOCX files can be inspected for text, but coordinate redaction requires PDF.
+  The redact endpoint rejects them with `PDF_REQUIRED`.
+- Visual comparison assumes unrotated pages. Unusual geometry may report
+  `VISUAL_CHECK_UNAVAILABLE`.
+- OCR can misread characters. All OCR-derived detections require explicit human
+  confirmation.
+- Icons can be located but not semantically named with high confidence. Icon
+  proximity is a hint; value regexes remain authoritative.
+- Sessions are in-memory. Restarting or scaling the API invalidates active
+  sessions.
+
+---
+
+## Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Browser shows `500` for every `/api/*` request | Vite is running but the API on port 4000 is not — the proxy returns 500 when its target is down | Start the backend first: `cd server && npm run dev` |
-| `EADDRINUSE :::4000` on startup | A backend is already listening on port 4000 (only one process can bind a port) | Use the running server, or stop it first: find the PID with `Get-NetTCPConnection -LocalPort 4000 -State Listen`, then `Stop-Process -Id <pid>` |
-| Review/editor page errors right after restarting the backend | Sessions are in-memory, so a restart wipes them while the browser keeps the old token | The client now drops the dead session automatically and shows "Start a new session" — re-upload from the Upload page |
-| `400 INVALID_REVIEW_DECISION` on "Save & continue" | Detection IDs are regenerated on each run; React StrictMode (dev) can double-run detection, leaving stale IDs in the review state | Fixed on both sides: the client sends only current detection IDs, and the server reuses a ready detection result instead of re-minting IDs |
-| Phone number still visible in the downloaded PDF | The old regex missed some formats; or the match was marked "Keep"; or the backend was not restarted after the fix | The regex now covers Indian (`+91 98765 43210`, `9876543210`, `+91-9876543210`), US (`(555) 123-4567`, `+1 555-123-4567`) and UK (`020 7946 0958`) formats. Valid phones are accepted (marked to hide) by default — check that the card does not say "Kept visible". Restart the backend to load the new rule. |
-| A logo or photo is not listed in "Masked matches" | Image detection only works on PDFs (DOCX has no page coordinates); or image is smaller than 8x8 pt; or backend was not restarted | Images are located from the PDF content stream with a local MuPDF device — positions only, never image bytes. They appear as "Image / logo" and need confirmation because a chart or icon can look the same. Click **Hide** to remove them permanently. Restart the backend after upgrading. |
-| A contact value next to an icon was not detected | The value has no recognised shape; or it is a location/website outside the supported list; or the PDF was scanned and OCR was not run | Phone, email, LinkedIn, GitHub, website (`rahul.dev`, `https://…`) and "City, Country/State" locations are matched by local rules with or without a text label. Unicode glyphs (☎ ✉ 📍 🌐 🔗) and nearby vector/raster icons are shown as an icon hint on the review card; the icon itself is never included in the redaction box. Run local OCR first for scanned resumes, then confirm every match. Restart the backend after upgrading. |
-| `Cannot find module 'mupdf'` | Dependencies not installed in `server/` | `cd server && npm install` |
-| `Promise.try is not a function` | `pdfjs-dist` 6.x on Node 22 | Keep `pdfjs-dist@4.10.38` pinned and import from `pdfjs-dist/legacy/build/pdf.mjs` |
-| `SESSION_EXPIRED` test flakes | System clock/timer delay under heavy load | Re-run; the test already allows a 100ms cleanup window |
-| Client test cannot import a `.jsx` file | Node test runner cannot parse JSX | Keep pure logic in `client/src/lib/*.js` (see `exportView.js`) |
-| Build passes but UI shows stale warnings | Vite cache | Stop the dev server and run `npm run build` again |
+| Browser shows `500` for every `/api/*` request locally | Vite is running but the API on port 4000 is not | Start the backend: `cd server && npm run dev` |
+| `EADDRINUSE :::4000` | Another process owns port 4000 | Find with `Get-NetTCPConnection -LocalPort 4000 -State Listen`, then stop the PID |
+| Review/editor fails after backend restart | Sessions are in-memory and were wiped | Start a new session and re-upload |
+| `SESSION_EXPIRED` on Render after idle time | Free or sleeping instance restarted | Use the `1c-2g` plan and one instance |
+| `400 INVALID_REVIEW_DECISION` | Stale detection IDs, often from React StrictMode double effects | Client sends current IDs only; re-run detection if the page is stale |
+| Browser calls Vercel `/api/...` and gets HTML/404 | `VITE_API_URL` missing at Vercel build time | Set it to the Render API URL with `/api`, then redeploy |
+| CORS error in browser console | `CLIENT_ORIGIN` does not exactly match the Vercel origin | Set exact origin, e.g. `https://resumeshield.vercel.app` |
+| `FILE_TOO_LARGE` in production | Host/proxy body limit below `MAX_UPLOAD_BYTES` | Raise host limit or lower `MAX_UPLOAD_BYTES` |
+| `Cannot find module 'mupdf'` | Dependencies not installed in `server/` | `cd server && npm ci` |
+| `Promise.try is not a function` | `pdfjs-dist` v6 on Node 20/22 | Keep `pdfjs-dist@4.10.38` pinned and use the legacy build path |
+| Phone number still visible in output | Wrong number format, marked Keep, or stale backend | Confirm Hide is selected; restart backend after rule changes |
+| Logo/photo not listed | Not a PDF, image under 8x8 pt, or stale backend | Re-run detection on the PDF and restart after upgrades |
+| Contact icon value not detected | Unrecognized value shape, scanned PDF, or stale backend | Run local OCR first and confirm every match |
+| Build passes but UI shows stale warnings | Vite cache or old build | Stop dev server and run `npm run build` again |
+
+---
+
+## Roadmap and non-goals
+
+Future work only:
+
+- Optional Presidio/NER sidecar for higher-recall detection.
+- MongoDB-backed sessions if multi-instance scaling is required.
+- Sharing links with short-lived access tokens.
+- AI-assisted feedback on anonymized documents.
+- Batch processing.
+- LibreOffice-based DOCX-to-PDF conversion before coordinate redaction.
+
+Explicit non-goals for the MVP:
+
+- Permanent resume storage.
+- User accounts and databases.
+- External AI APIs receiving document content.
+- Rectangle overlays that leave recoverable text.
+- Multi-instance backend deployment without a session-storage redesign.
