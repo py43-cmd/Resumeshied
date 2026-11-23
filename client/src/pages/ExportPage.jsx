@@ -20,35 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { useSession } from '../context/SessionContext.jsx';
 import { warningMessages } from '../lib/detectionView.js';
 import { createRedaction, downloadRedaction } from '../lib/exportApi.js';
-
-const CHECKS = [
-  { key: 'text', label: 'Selected content permanently removed from the PDF' },
-  { key: 'geometry', label: 'Text layer verified against the original page geometry' },
-  { key: 'cleanup', label: 'Existing annotations, embedded files and standard metadata cleared' },
-  { key: 'rewrite', label: 'File rewritten without incremental history' },
-  { key: 'visual', label: 'Untouched page areas render identically to the original' },
-];
-
-const GEOMETRY_WARNINGS = new Set(['PAGE_COUNT_CHANGED', 'PAGE_DIMENSIONS_CHANGED']);
-
-/** Privacy checks block export; fidelity checks only annotate the result. */
-function checkStatus(check, result, warningCodes) {
-  const verification = result?.verification ?? {};
-
-  if (check.key === 'visual') {
-    if (warningCodes.includes('VISUAL_DIFF_OUTSIDE_BOXES')) return 'warning';
-    if (verification.fidelity?.status === 'unverifiable') return 'warning';
-    return 'pass';
-  }
-
-  if (check.key === 'geometry' && warningCodes.some((code) => GEOMETRY_WARNINGS.has(code))) {
-    return 'warning';
-  }
-
-  if (verification.privacy?.status === 'passed') return 'pass';
-  if (verification.privacy?.status === 'failed') return 'fail';
-  return 'warning';
-}
+import { checkStatus, EXPORT_CHECKS } from '../lib/exportView.js';
 
 const STATUS_ICONS = {
   pass: { Icon: Check, className: 'text-success' },
@@ -175,7 +147,7 @@ export default function ExportPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <ul className="space-y-2" aria-label="Verification checks">
-                {CHECKS.map((check) => {
+                {EXPORT_CHECKS.map((check) => {
                   const status = checkStatus(check, result, warningCodes);
                   const { Icon, className } = STATUS_ICONS[status];
 

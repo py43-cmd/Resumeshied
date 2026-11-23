@@ -14,7 +14,7 @@ them for feedback.
 - [x] Phase 6 — Privacy editor
 - [x] Phase 7 — Native PDF redaction
 - [x] Phase 8 — Verification and visual QA
-- [ ] Phase 9 — Testing
+- [x] Phase 9 — Testing
 - [ ] Phase 10 — Deployment
 
 ## Repository layout
@@ -108,3 +108,59 @@ check.
   the redact endpoint rejects them with `PDF_REQUIRED`.
 - Visual comparison assumes unrotated pages; heavily rotated or unusual page
   geometry may report `VISUAL_CHECK_UNAVAILABLE`.
+
+## Testing (Phase 9)
+
+Run both suites from the repository root. Each `node --test` file runs in its
+own process, so the short-TTL expiry test cannot affect the other suites.
+
+```bash
+cd server && npm test       # expected: 39 tests, 39 pass, 0 fail
+cd ../client && npm test    # expected: 21 tests, 21 pass, 0 fail
+cd ../client && npm run build
+```
+
+### What is covered
+
+| Area | File | Key assertions |
+| --- | --- | --- |
+| API envelope / routing | `server/tests/health.test.js` | request IDs, 404 envelope |
+| Sessions & uploads | `server/tests/session.test.js` | token auth, MIME/signature checks, size limit, folder cleanup |
+| Expiry | `server/tests/session-expiry.test.js` | 1s TTL via env, `SESSION_EXPIRED`, temp folder deleted |
+| Extraction | `server/tests/extraction.test.js` | geometry, OCR handoff, no text in responses |
+| Detection | `server/tests/detection.test.js` | masked values, page-accurate bboxes, no raw PII |
+| OCR | `server/tests/ocr.test.js` | local tesseract, mandatory human review |
+| Editor | `server/tests/editor.test.js` | PNG preview, privacy-safe plan, blocked plans |
+| Redaction | `server/tests/redaction.test.js` | permanent removal, private download, privacy gates |
+| Verification | `server/tests/verification.test.js` | `TEXT_REMAINS_IN_BOX`, `VISUAL_DIFF_OUTSIDE_BOXES` |
+| End-to-end | `server/tests/e2e.test.js` | full 2-page pipeline, download-time plan re-check |
+| Log privacy | `server/tests/logging.test.js` | allowlist drops filenames and values |
+| Client | `client/tests/*.test.js` | validation, view helpers, export verdict logic |
+
+Run a single file while debugging:
+
+```bash
+cd server && node --test tests/e2e.test.js
+cd client && node --test tests/exportView.test.js
+```
+
+### Expected output notes
+
+- `node --test` prints a `# tests / # pass / # fail / # duration_ms` summary.
+  Exit code is `0` only when everything passes.
+- MuPDF may print warnings such as
+  `getPathGenerator - ignoring character: "Helvetica_path_R."` during page
+  rendering tests. These come from the minimal hand-built test fixture's font
+  mapping and are harmless; they do not indicate a failed assertion.
+- `SESSION_TTL_SECONDS` is intentionally set to `1` inside
+  `session-expiry.test.js` using a dynamic import. Do not set it globally.
+
+### Common errors
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `Cannot find module 'mupdf'` | Dependencies not installed in `server/` | `cd server && npm install` |
+| `Promise.try is not a function` | `pdfjs-dist` 6.x on Node 22 | Keep `pdfjs-dist@4.10.38` pinned and import from `pdfjs-dist/legacy/build/pdf.mjs` |
+| `SESSION_EXPIRED` test flakes | System clock/timer delay under heavy load | Re-run; the test already allows a 100ms cleanup window |
+| Client test cannot import a `.jsx` file | Node test runner cannot parse JSX | Keep pure logic in `client/src/lib/*.js` (see `exportView.js`) |
+| Build passes but UI shows stale warnings | Vite cache | Stop the dev server and run `npm run build` again |

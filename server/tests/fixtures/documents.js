@@ -62,6 +62,54 @@ export function createPdfFromLines(lines) {
   return buildPdf(stream);
 }
 
+/** A multi-page PDF where each page has its own lines at known positions. */
+export function createMultiPagePdf(linesByPage) {
+  const pageCount = linesByPage.length;
+  if (pageCount === 0) throw new Error('At least one page is required');
+  // Objects: 1 = catalog, 2 = pages tree, then 2 per page, then the font.
+  const fontRef = 2 + pageCount * 2 + 1;
+  const pageRefs = [];
+  const objects = ['<< /Type /Catalog /Pages 2 0 R >>', null];
+
+  linesByPage.forEach((lines) => {
+    const stream = lines
+      .map((line, index) => {
+        const y = 720 - index * 18;
+        return `BT /F1 12 Tf 72 ${y} Td (${escapePdfText(line)}) Tj ET\n`;
+      })
+      .join('');
+
+    const pageRef = objects.length + 1;
+    pageRefs.push(pageRef);
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] ` +
+        `/Contents ${pageRef + 1} 0 R /Resources << /Font << /F1 ${fontRef} 0 R >> >> >>`,
+    );
+    objects.push(`<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}endstream`);
+  });
+
+  objects[1] =
+    `<< /Type /Pages /Kids [${pageRefs.map((ref) => `${ref} 0 R`).join(' ')}] ` +
+    `/Count ${pageRefs.length} >>`;
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [];
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(Buffer.byteLength(pdf));
+    pdf += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
+  }
+
+  const xrefOffset = Buffer.byteLength(pdf);
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+
+  return Buffer.from(pdf, 'latin1');
+}
+
 /** A PDF with no text operators - the "scanned" path in our extractor. */
 export function createTextlessPdf() {
   return createMinimalPdf('', { includeText: false });
