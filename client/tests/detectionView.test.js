@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   confidencePercent,
   groupDetectionsByPage,
+  iconContextLabel,
   initialReviewState,
   reviewSummary,
   typeLabel,
@@ -39,6 +40,13 @@ test('formats only allowlisted presentation labels', () => {
   assert.equal(typeLabel('SOMETHING_NEW'), 'Something New');
   assert.equal(confidencePercent(0.956), '96%');
   assert.equal(confidencePercent(null), '—');
+});
+
+test('labels icon hints without revealing the detected value', () => {
+  assert.equal(iconContextLabel({ iconContext: 'phone' }), 'Phone icon');
+  assert.equal(iconContextLabel({ iconContext: 'near-icon' }), 'Near an icon');
+  assert.equal(iconContextLabel({}), null);
+  assert.match(iconContextLabel({ iconContext: 'custom' }), /^Near .* icon$/);
 });
 
 test('maps warnings to honest messages without dropping unknown codes', () => {

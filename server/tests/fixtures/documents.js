@@ -166,6 +166,120 @@ export function createScannedPdf(lines) {
   return buildImagePdf(image.toBuffer('image/jpeg', 95), imageWidth, imageHeight);
 }
 
+const FULL_WIDTHS = Array(256).fill(600).join(' ');
+
+const ICON_GLYPH_CODES = {
+  phone: '01',
+  email: '02',
+  location: '03',
+  website: '04',
+  link: '05',
+};
+
+const ICON_CMAP = `{
+/CIDInit /ProcSet findresource begin
+12 dict begin
+begincmap
+/CMapName /ContactIcons def
+/CMapType 2 def
+1 begincodespacerange
+<00> <FF>
+endcodespacerange
+5 beginbfchar
+<01> <260E>
+<02> <2709>
+<03> <D83D FCCD>
+<04> <D83C DF10>
+<05> <D83D DD17>
+endbfchar
+endcmap
+CMapName currentdict /CMap defineresource pop
+end
+end
+}`;
+
+function assemblePdf(objects) {
+  let pdf = '%PDF-1.4\n';
+  const offsets = [];
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(Buffer.byteLength(pdf, 'latin1'));
+    pdf += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
+  }
+
+  const xrefOffset = Buffer.byteLength(pdf, 'latin1');
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(pdf, 'latin1');
+}
+
+/**
+ * Contact rows where the icon is a Unicode glyph inside the same text item as
+ * the value — the case where a careless redaction box would cover the icon.
+ */
+export function createPdfWithUnicodeIcons(rows) {
+  const stream = rows
+    .map((row, index) => {
+      const x = row.x ?? 72;
+      const y = row.y ?? 720 - index * 22;
+      const code = ICON_GLYPH_CODES[row.glyph];
+      if (!code) throw new Error(`Unknown icon glyph: ${row.glyph}`);
+      return `BT /F1 12 Tf ${x} ${y} Td <${code}> Tj (${escapePdfText(` ${row.text}`)}) Tj ET\n`;
+    })
+    .join('');
+
+  return assemblePdf([
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}endstream`,
+    `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /FirstChar 0 /LastChar 255 /Widths [${FULL_WIDTHS}] /Encoding << /Type /Encoding /Differences [1 /phone /email /location /website /link] >> /ToUnicode 6 0 R >>`,
+    `<< /Length ${Buffer.byteLength(ICON_CMAP, 'latin1')} >>\nstream\n${ICON_CMAP}endstream`,
+  ]);
+}
+
+/**
+ * Contact rows where the icon is a small vector drawing (not an image). Rows
+ * may use different x positions for two-column layouts, and pages may differ.
+ */
+export function createPdfWithVectorIcons(pages) {
+  if (!Array.isArray(pages) || pages.length === 0) throw new Error('At least one page is required');
+  const fontRef = 2 + pages.length * 2 + 1;
+  const objects = ['<< /Type /Catalog /Pages 2 0 R >>', null];
+  const pageRefs = [];
+
+  pages.forEach((rows) => {
+    const stream = rows
+      .map((row, index) => {
+        const x = row.x ?? 72;
+        const y = row.y ?? 720 - index * 22;
+        const iconX = row.iconX ?? x - 18;
+        const icon =
+          row.icon === false
+            ? ''
+            : `0 0 1 rg ${iconX} ${y - 2} 10 10 re f\n`;
+        return `${icon}BT /F1 12 Tf ${x} ${y} Td (${escapePdfText(row.text)}) Tj ET\n`;
+      })
+      .join('');
+
+    const pageRef = objects.length + 1;
+    pageRefs.push(pageRef);
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] ` +
+        `/Contents ${pageRef + 1} 0 R /Resources << /Font << /F1 ${fontRef} 0 R >> >> >>`,
+    );
+    objects.push(`<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}endstream`);
+  });
+
+  objects[1] =
+    `<< /Type /Pages /Kids [${pageRefs.map((ref) => `${ref} 0 R`).join(' ')}] ` +
+    `/Count ${pageRefs.length} >>`;
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  return assemblePdf(objects);
+}
+
 /**
  * A resume-like PDF with a real text layer plus a small logo image in the
  * header, so image detection and image redaction can be tested together.

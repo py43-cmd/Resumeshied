@@ -1,25 +1,54 @@
 import { randomUUID } from 'node:crypto';
 
+import { attachIconContext } from './iconContext.js';
 import { maskValue } from './masking.js';
 import { RULES, SECTION_HEADERS } from './rules.js';
+import { findUnicodeIconRanges, subBboxForRange } from './unicodeIcons.js';
 
 function round(value) {
   return Math.round(value * 100) / 100;
 }
 
-/** Rebuild page text while remembering which character range came from which bbox. */
+/**
+ * Rebuild page text while remembering which character range came from which
+ * bbox. Items containing a Unicode contact glyph are split so the glyph's box
+ * is never included when the value beside it is redacted.
+ */
 function buildPageTextWithMap(textItems = []) {
   let text = '';
   const spans = [];
 
-  for (const item of textItems) {
-    const value = typeof item.text === 'string' ? item.text : '';
+  for (const [itemIndex, item] of (textItems ?? []).entries()) {
+    const value = typeof item?.text === 'string' ? item.text : '';
     if (!value.trim()) continue;
 
     if (text.length > 0) text += ' ';
-    const start = text.length;
+    const itemStart = text.length;
     text += value;
-    spans.push({ start, end: text.length, text: value, bbox: item.bbox ?? null });
+
+    const iconRanges = findUnicodeIconRanges(value);
+    const boundaries = [
+      0,
+      ...iconRanges.flatMap((range) => [range.start, range.end]),
+      value.length,
+    ].filter((position, index, all) => index === 0 || position > all[index - 1]);
+
+    for (let index = 0; index < boundaries.length - 1; index += 1) {
+      const localStart = boundaries[index];
+      const localEnd = boundaries[index + 1];
+      if (localStart >= localEnd) continue;
+
+      spans.push({
+        start: itemStart + localStart,
+        end: itemStart + localEnd,
+        text: value.slice(localStart, localEnd),
+        bbox:
+          iconRanges.length > 0
+            ? subBboxForRange(value, item.bbox, localStart, localEnd)
+            : (item.bbox ?? null),
+        itemIndex,
+      });
+    }
   }
 
   return { text, spans };
@@ -84,37 +113,45 @@ function applyRules(text, spans, pageNumber) {
     let match = rule.pattern.exec(text);
 
     while (match !== null) {
-      const start = match.index;
-      const end = start + match[0].length;
+      const rawValue = rule.trimTrailing
+        ? match[0].replace(rule.trimTrailing, '')
+        : match[0];
 
-      if (rule.isValid && !rule.isValid(match)) {
-        match = rule.pattern.exec(text);
-        continue;
-      }
+      if (rawValue) {
+        // Preserve the regex capture groups at their original indices so
+        // rules such as LOCATION can validate their trailing region token.
+        const candidate = [rawValue, ...match.slice(1)];
+        const start = match.index;
+        const end = start + rawValue.length;
 
-      const overlapsClaimed = claimedRanges.some(
-        (range) => start < range.end && end > range.start,
-      );
-
-      if (!overlapsClaimed) {
-        const confidence =
-          typeof rule.confidence === 'function' ? rule.confidence(match) : rule.confidence;
-        const reason =
-          typeof rule.reason === 'function' ? rule.reason(match) : rule.reason;
-
-        if (Number.isFinite(confidence) && confidence > 0) {
-          detections.push(
-            createDetection({
-              type: rule.type,
-              method: rule.method,
-              confidence,
-              pageNumber,
-              bboxes: bboxesForRange(spans, start, end),
-              value: match[0],
-              reason,
-            }),
+        if (!rule.isValid || rule.isValid(candidate)) {
+          const overlapsClaimed = claimedRanges.some(
+            (range) => start < range.end && end > range.start,
           );
-          claimedRanges.push({ start, end });
+
+          if (!overlapsClaimed) {
+            const confidence =
+              typeof rule.confidence === 'function'
+                ? rule.confidence(candidate)
+                : rule.confidence;
+            const reason =
+              typeof rule.reason === 'function' ? rule.reason(candidate) : rule.reason;
+
+            if (Number.isFinite(confidence) && confidence > 0) {
+              detections.push(
+                createDetection({
+                  type: rule.type,
+                  method: rule.method,
+                  confidence,
+                  pageNumber,
+                  bboxes: bboxesForRange(spans, start, end),
+                  value: rawValue,
+                  reason,
+                }),
+              );
+              claimedRanges.push({ start, end });
+            }
+          }
         }
       }
 
@@ -147,11 +184,12 @@ function looksLikeName(value) {
 function detectNamesFromItems(textItems, spans, claimedRanges, pageNumber) {
   const detections = [];
 
-  for (const item of (textItems ?? []).slice(0, 5)) {
+  for (const [itemIndex, item] of (textItems ?? []).entries()) {
+    if (itemIndex >= 5) break;
     const value = item.text?.trim();
     if (!looksLikeName(value)) continue;
 
-    const span = spans.find((entry) => entry.text === item.text);
+    const span = spans.find((entry) => entry.itemIndex === itemIndex);
     if (span && claimedRanges.some((range) => span.start < range.end && span.end > range.start)) {
       continue;
     }
@@ -267,6 +305,10 @@ export function runDetection(extraction) {
     );
     detections.push(...detectImages(page));
   }
+
+  // Geometric hints only: they are attached after all pages are scanned so a
+  // value can be associated with an icon on its own page in any layout.
+  attachIconContext(detections, pages);
 
   return {
     status: 'ready',

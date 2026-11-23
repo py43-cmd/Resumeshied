@@ -11,6 +11,18 @@ function toPublicDetection(detection) {
     maskedValue: detection.maskedValue,
     needsReview: detection.needsReview,
     ...(detection.reason ? { reason: detection.reason } : {}),
+    ...(detection.iconContext
+      ? {
+          iconContext: detection.iconContext,
+          ...(detection.iconHints ? { iconHints: detection.iconHints } : {}),
+          ...(detection.iconContextSources
+            ? { iconContextSources: detection.iconContextSources }
+            : {}),
+          ...(Number.isFinite(detection.iconDistancePoints)
+            ? { iconDistancePoints: detection.iconDistancePoints }
+            : {}),
+        }
+      : {}),
   };
 }
 

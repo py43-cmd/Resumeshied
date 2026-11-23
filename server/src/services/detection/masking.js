@@ -35,7 +35,8 @@ export function maskValue(value, type) {
 
     case 'URL': {
       try {
-        const host = new URL(raw).hostname.replace(/^www\./, '');
+        const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+        const host = new URL(withProtocol).hostname.replace(/^www\./, '');
         const dot = host.lastIndexOf('.');
         const suffix = dot === -1 ? '' : host.slice(dot);
         return `••••${suffix}`;
@@ -43,6 +44,16 @@ export function maskValue(value, type) {
         return bullets(8);
       }
     }
+
+    case 'LOCATION':
+      return raw
+        .split(',')
+        .map((part) => {
+          const token = part.trim();
+          return token ? `${token[0]}${bullets(token.length - 1, 6)}` : '';
+        })
+        .filter(Boolean)
+        .join(', ');
 
     case 'IMAGE':
       return '[image]';

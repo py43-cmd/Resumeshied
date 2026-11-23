@@ -4,7 +4,12 @@ import request from 'supertest';
 import * as mupdf from 'mupdf';
 
 import app from '../src/app.js';
-import { createMultiPagePdf, createPdfFromLines, createPdfWithLogo } from './fixtures/documents.js';
+import {
+  createMultiPagePdf,
+  createPdfFromLines,
+  createPdfWithLogo,
+  createPdfWithVectorIcons,
+} from './fixtures/documents.js';
 
 const NAME = 'Rahul Sharma';
 const EMAIL = 'rahul.sharma@example.com';
@@ -199,6 +204,84 @@ test('hiding a logo permanently removes its pixels from the download', async () 
       red > 200 && green > 200 && blue > 200,
       `logo pixels survived in the download (rgb ${red},${green},${blue})`,
     );
+    pix.destroy();
+    page.destroy();
+  } finally {
+    doc.destroy();
+  }
+
+  await destroy(session);
+});
+
+test('redacts an icon-adjacent phone value while the vector icon survives', async () => {
+  const sessionResponse = await request(app).post('/api/sessions');
+  assert.equal(sessionResponse.status, 201);
+  const session = sessionResponse.body.data;
+
+  const upload = await request(app)
+    .post(`/api/sessions/${session.sessionId}/files`)
+    .set('X-Session-Token', session.token)
+    .attach(
+      'file',
+      createPdfWithVectorIcons([
+        [
+          { text: PHONE, x: 72, y: 720 },
+          { text: 'Software Engineer', x: 72, y: 680, icon: false },
+        ],
+      ]),
+      { filename: 'icon-contact.pdf', contentType: 'application/pdf' },
+    );
+  assert.equal(upload.status, 201);
+  const documentId = upload.body.data.documentId;
+
+  assert.equal((await post(session, documentId, '/extract')).status, 200);
+  const detection = await post(session, documentId, '/detect');
+  assert.equal(detection.status, 200);
+
+  const phone = detection.body.data.detections.find((item) => item.type === 'PHONE');
+  assert.ok(phone, 'icon-adjacent phone must be detected');
+  assert.equal(phone.iconContext, 'near-icon');
+
+  const decisions = Object.fromEntries(
+    detection.body.data.detections.map((item) => [
+      item.detectionId,
+      item.type === 'PHONE' ? 'accepted' : 'rejected',
+    ]),
+  );
+  const plan = await putPlan(session, documentId, { decisions, manualRegions: [] });
+  assert.equal(plan.body.data.planStatus, 'ready');
+
+  const redaction = await post(session, documentId, '/redact');
+  assert.equal(redaction.status, 201);
+  assert.equal(redaction.body.data.verification.privacy.status, 'passed');
+
+  const download = await fetchDownload(session, redaction.body.data.redactionId);
+  assert.equal(download.status, 200);
+  assert.equal(pageTexts(download.body).join('\n').includes(PHONE), false);
+
+  const doc = mupdf.Document.openDocument(new Uint8Array(download.body), 'application/pdf');
+  try {
+    const page = doc.loadPage(0);
+    const pix = page.toPixmap(mupdf.Matrix.scale(1, 1), mupdf.ColorSpace.DeviceRGB, false, false);
+    const pixels = pix.getPixels();
+    const width = pix.getWidth();
+    const components = pix.getNumberOfComponents();
+    const sample = (x, y) => {
+      const offset = (y * width + x) * components;
+      return [pixels[offset], pixels[offset + 1], pixels[offset + 2]];
+    };
+
+    // Icon rect is x=54..64, top-left y=64..74 -> centre (59, 69).
+    const [red, green, blue] = sample(59, 69);
+    assert.ok(blue > 180 && red < 80 && green < 80, `icon was removed (rgb ${red},${green},${blue})`);
+
+    // The value's area is clear after permanent redaction.
+    const cleared = sample(110, 66);
+    assert.ok(
+      cleared.every((channel) => channel > 200),
+      `phone area was not cleared (rgb ${cleared.join(',')})`,
+    );
+
     pix.destroy();
     page.destroy();
   } finally {

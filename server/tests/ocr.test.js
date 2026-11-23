@@ -98,6 +98,32 @@ test('OCRs an image-only PDF with local data, then detects PII with mandatory re
   await destroy(session);
 });
 
+test('OCR detects label-free contact values without mistaking the scan for a contact icon', async () => {
+  const LOCATION = 'Delhi, India';
+  const { session, document } = await upload(
+    createScannedPdf([NAME, EMAIL, PHONE, LOCATION]),
+  );
+
+  assert.equal((await post(session, document.documentId, 'extract')).status, 200);
+  const ocrResponse = await post(session, document.documentId, 'ocr');
+  assert.equal(ocrResponse.status, 200);
+
+  const detectionResponse = await post(session, document.documentId, 'detect');
+  assert.equal(detectionResponse.status, 200);
+  const detections = detectionResponse.body.data.detections;
+  const types = detections.map((item) => item.type);
+
+  for (const expected of ['EMAIL', 'PHONE', 'LOCATION']) {
+    assert.ok(types.includes(expected), `missing ${expected} after OCR`);
+  }
+  for (const detection of detections) {
+    assert.equal(detection.needsReview, true, 'OCR matches always require human review');
+    assert.equal(detection.iconContext, undefined, 'a full-page scan is not an icon');
+  }
+
+  await destroy(session);
+});
+
 test('rejects OCR when the PDF already has a text layer', async () => {
   const { session, document } = await upload(createMinimalPdf('Digital resume text'));
 

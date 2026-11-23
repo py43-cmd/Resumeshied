@@ -5,6 +5,7 @@ import { Button } from '../ui/Button.jsx';
 import {
   confidencePercent,
   decisionVariant,
+  iconContextLabel,
   methodLabel,
   typeLabel,
 } from '../../lib/detectionView.js';
@@ -13,6 +14,7 @@ export function DetectionReviewCard({ detection, decision = 'undecided', onDecis
   const pageLabel = Number.isInteger(detection.pageNumber)
     ? `Page ${detection.pageNumber}`
     : 'No page coordinate';
+  const iconLabel = iconContextLabel(detection);
 
   return (
     <article
@@ -42,6 +44,7 @@ export function DetectionReviewCard({ detection, decision = 'undecided', onDecis
               </Badge>
             )}
             {decision === 'rejected' && <Badge variant="muted">Kept visible</Badge>}
+            {iconLabel && <Badge variant="outline">{iconLabel}</Badge>}
           </div>
 
           {decision === 'accepted' ? (

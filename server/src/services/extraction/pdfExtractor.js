@@ -7,7 +7,7 @@ import fs from 'node:fs/promises';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 import { ApiError } from '../../utils/ApiError.js';
-import { scanPdfImageBoxes } from '../detection/imageBoxScanner.js';
+import { scanPdfGraphics } from '../detection/iconBoxScanner.js';
 
 const MIN_TEXT_CHARACTERS = 16;
 const IMAGE_OPERATORS = new Set([
@@ -55,7 +55,7 @@ function isEncryptionError(error) {
 export async function extractPdf(absolutePath) {
   const bytes = await fs.readFile(absolutePath);
   const warnings = scanRawWarnings(bytes);
-  const imageBoxesByPage = scanPdfImageBoxes(bytes);
+  const { images: imageBoxesByPage, icons: iconBoxesByPage } = scanPdfGraphics(bytes);
 
   let pdf;
   try {
@@ -131,6 +131,8 @@ export async function extractPdf(absolutePath) {
         imageDrawCount,
         imageBoxes:
           imageBoxesByPage.find((entry) => entry.pageNumber === pageNumber)?.boxes ?? [],
+        iconBoxes:
+          iconBoxesByPage.find((entry) => entry.pageNumber === pageNumber)?.boxes ?? [],
         annotationCount,
       });
 

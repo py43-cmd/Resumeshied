@@ -8,6 +8,8 @@ import {
   createMinimalPdf,
   createPdfFromLines,
   createPdfWithLogo,
+  createPdfWithUnicodeIcons,
+  createPdfWithVectorIcons,
   createTextlessPdf,
 } from './fixtures/documents.js';
 
@@ -81,6 +83,32 @@ test('re-running detection reuses stable IDs from a ready result', async () => {
   const secondIds = second.body.data.detections.map((item) => item.detectionId).sort();
   assert.deepEqual(secondIds, firstIds);
   assert.ok(firstIds.length > 0);
+
+  await destroy(session);
+});
+
+test('detects unlabelled contact values with no field labels present', async () => {
+  const { session, document } = await upload(
+    createPdfFromLines([
+      'Rahul Sharma',
+      '+91 9876543210',
+      'rahul@gmail.com',
+      'linkedin.com/in/rahul',
+      'github.com/rahul',
+      'Delhi, India',
+      'rahul.dev',
+    ]),
+    'unlabelled.pdf',
+    'application/pdf',
+  );
+  await extract(session, document.documentId);
+
+  const response = await detect(session, document.documentId);
+  assert.equal(response.status, 200);
+  const types = response.body.data.detections.map((item) => item.type);
+  for (const expected of ['PHONE', 'EMAIL', 'LINKEDIN', 'GITHUB']) {
+    assert.ok(types.includes(expected), `missing ${expected} without a text label`);
+  }
 
   await destroy(session);
 });
@@ -259,6 +287,167 @@ test('requires extraction before detection and exposes a pending state', async (
   const response = await detect(session, document.documentId);
   assert.equal(response.status, 409);
   assert.equal(response.body.error.code, 'EXTRACTION_REQUIRED');
+
+  await destroy(session);
+});
+
+test('detects unlabelled contact values beside Unicode icons without covering the glyphs', async () => {
+  const PHONE_VALUE = '+91 9876543210';
+  const EMAIL_VALUE = 'rahul@gmail.com';
+  const LOCATION_VALUE = 'Delhi, India';
+  const WEBSITE_VALUE = 'rahul.dev';
+  const { session, document } = await upload(
+    createPdfWithUnicodeIcons([
+      { glyph: 'phone', text: PHONE_VALUE },
+      { glyph: 'email', text: EMAIL_VALUE },
+      { glyph: 'location', text: LOCATION_VALUE },
+      { glyph: 'website', text: WEBSITE_VALUE },
+      { glyph: 'link', text: 'https://rahul.dev' },
+    ]),
+    'unicode-icons.pdf',
+    'application/pdf',
+  );
+  await extract(session, document.documentId);
+
+  const response = await detect(session, document.documentId);
+  assert.equal(response.status, 200);
+  const result = response.body.data;
+  const types = result.detections.map((item) => item.type);
+  for (const expected of ['PHONE', 'EMAIL', 'LOCATION', 'URL']) {
+    assert.ok(types.includes(expected), `missing ${expected} beside a Unicode icon`);
+  }
+
+  const contexts = new Map(result.detections.map((item) => [item.type, item.iconContext]));
+  assert.equal(contexts.get('PHONE'), 'phone');
+  assert.equal(contexts.get('EMAIL'), 'email');
+  assert.equal(contexts.get('LOCATION'), 'location');
+  assert.equal(contexts.get('URL'), 'website');
+
+  for (const detection of result.detections) {
+    assert.ok(
+      detection.bboxes.every((box) => box.x >= 86),
+      `${detection.type} redaction box overlaps the icon glyph area`,
+    );
+  }
+
+  const body = JSON.stringify(response.body);
+  for (const secret of [PHONE_VALUE, EMAIL_VALUE, LOCATION_VALUE, WEBSITE_VALUE]) {
+    assert.equal(body.includes(secret), false, `raw value leaked: ${secret}`);
+  }
+
+  await destroy(session);
+});
+
+test('handles multiple contact icons on one line without mixing their values', async () => {
+  const { session, document } = await upload(
+    createPdfWithUnicodeIcons([
+      { glyph: 'phone', text: '+91 9876543210', x: 72, y: 720 },
+      { glyph: 'email', text: 'rahul@gmail.com', x: 320, y: 720 },
+    ]),
+    'two-icons-one-line.pdf',
+    'application/pdf',
+  );
+  await extract(session, document.documentId);
+
+  const response = await detect(session, document.documentId);
+  assert.equal(response.status, 200);
+  const phone = response.body.data.detections.find((item) => item.type === 'PHONE');
+  const email = response.body.data.detections.find((item) => item.type === 'EMAIL');
+  assert.ok(phone && email);
+  assert.equal(phone.iconContext, 'phone');
+  assert.equal(email.iconContext, 'email');
+  assert.ok(phone.bboxes[0].x < 200, 'phone box stays in the left column');
+  assert.ok(email.bboxes[0].x > 300, 'email box stays in the right column');
+
+  await destroy(session);
+});
+
+test('associates vector icons in two-column and multi-page layouts', async () => {
+  const { session, document } = await upload(
+    createPdfWithVectorIcons([
+      [
+        { text: '+91 9876543210', x: 72, y: 720 },
+        { text: 'rahul@gmail.com', x: 320, y: 720 },
+        { text: 'github.com/rahul', x: 320, y: 690 },
+      ],
+      [{ text: 'linkedin.com/in/rahul', x: 72, y: 720 }],
+    ]),
+    'vector-icons.pdf',
+    'application/pdf',
+  );
+  await extract(session, document.documentId);
+
+  const response = await detect(session, document.documentId);
+  assert.equal(response.status, 200);
+  const detections = response.body.data.detections;
+
+  for (const detection of detections) {
+    assert.equal(detection.iconContext, 'near-icon');
+    assert.deepEqual(detection.iconContextSources, ['vector']);
+  }
+  assert.deepEqual(
+    detections.filter((item) => item.pageNumber === 1).map((item) => item.type).sort(),
+    ['EMAIL', 'GITHUB', 'PHONE'],
+  );
+  assert.deepEqual(
+    detections.filter((item) => item.pageNumber === 2).map((item) => item.type),
+    ['LINKEDIN'],
+  );
+  assert.ok(detections.find((item) => item.type === 'EMAIL').bboxes[0].x > 300);
+  assert.ok(detections.find((item) => item.type === 'PHONE').bboxes[0].x < 200);
+
+  await destroy(session);
+});
+
+test('does not attach icon hints to values far from decorative icons', async () => {
+  const { session, document } = await upload(
+    createPdfWithVectorIcons([
+      [
+        { text: 'rahul@gmail.com', x: 72, y: 720, icon: false },
+        { text: 'Decorative only', x: 480, y: 300, icon: true, iconX: 470 },
+      ],
+    ]),
+    'false-positive-icon.pdf',
+    'application/pdf',
+  );
+  await extract(session, document.documentId);
+
+  const response = await detect(session, document.documentId);
+  assert.equal(response.status, 200);
+  const email = response.body.data.detections.find((item) => item.type === 'EMAIL');
+  assert.ok(email, 'email must still be detected without an icon');
+  assert.equal(email.iconContext, undefined);
+
+  await destroy(session);
+});
+
+test('detects protocol-less websites and locations without labels', async () => {
+  const { session, document } = await upload(
+    createPdfFromLines([
+      'Rahul Sharma',
+      'rahul.dev',
+      'https://rahul.dev/portfolio',
+      'Delhi, India',
+      'San Francisco, CA',
+      'v1.2.3',
+      '192.168.1.1',
+    ]),
+    'bare-urls-and-locations.pdf',
+    'application/pdf',
+  );
+  await extract(session, document.documentId);
+
+  const response = await detect(session, document.documentId);
+  assert.equal(response.status, 200);
+  const detections = response.body.data.detections;
+  const urls = detections.filter((item) => item.type === 'URL');
+  const locations = detections.filter((item) => item.type === 'LOCATION');
+
+  assert.equal(urls.length, 2, 'both prefixed and protocol-less URLs are detected');
+  assert.equal(locations.length, 2, 'both city/country and city/state are detected');
+  assert.ok(urls.every((item) => item.maskedValue.includes('.dev')));
+  assert.ok(locations.every((item) => item.needsReview === true));
+  assert.equal(detections.some((item) => item.type === 'PHONE'), false, 'IP/version are not phones');
 
   await destroy(session);
 });

@@ -9,6 +9,16 @@ export const DETECTION_TYPE_LABELS = {
   GITHUB: 'GitHub profile',
   DOB: 'Date of birth',
   URL: 'Website / URL',
+  LOCATION: 'Location / address',
+};
+
+const ICON_CONTEXT_LABELS = {
+  phone: 'Phone icon',
+  email: 'Email icon',
+  location: 'Location icon',
+  website: 'Website icon',
+  link: 'Link icon',
+  'near-icon': 'Near an icon',
 };
 
 export const WARNING_MESSAGES = {
@@ -51,6 +61,14 @@ export function methodLabel(method) {
   if (method === 'heuristic') return 'Heuristic';
   if (method === 'image') return 'Image position';
   return String(method ?? 'Unknown');
+}
+
+/** Human-readable icon hint. It never reveals the matched value. */
+export function iconContextLabel(detection) {
+  const context = detection?.iconContext;
+  if (!context) return null;
+  if (ICON_CONTEXT_LABELS[context]) return ICON_CONTEXT_LABELS[context];
+  return `Near ${String(context).toLowerCase()} icon`;
 }
 
 export function confidencePercent(confidence) {

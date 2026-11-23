@@ -188,6 +188,8 @@ export async function ocrPdfDocument(document) {
         textItems: recognized.textItems,
         text: recognized.text,
         imageDrawCount: originalPage.imageDrawCount ?? 0,
+        imageBoxes: originalPage.imageBoxes ?? [],
+        iconBoxes: originalPage.iconBoxes ?? [],
         annotationCount: originalPage.annotationCount ?? 0,
       });
 
