@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { setSessionToken } from '../lib/api.js';
@@ -20,8 +21,13 @@ function readStoredSession() {
   }
 }
 
+// Set before first paint so child effects in protected routes already have the token.
+const initialSession = readStoredSession();
+setSessionToken(initialSession?.token ?? null);
+
 export function SessionProvider({ children }) {
-  const [session, setSession] = useState(readStoredSession);
+  const [session, setSession] = useState(initialSession);
+  const sessionRef = useRef(initialSession);
 
   // sessionStorage dies when the tab closes - by design.
   useEffect(() => {
@@ -38,18 +44,26 @@ export function SessionProvider({ children }) {
   }, [session]);
 
   const updateSession = useCallback((patch) => {
-    setSession((previous) => {
-      const next =
-        typeof patch === 'function' ? patch(previous) : { ...(previous ?? {}), ...patch };
-      return next?.token ? next : null;
-    });
+    const previous = sessionRef.current;
+    const next =
+      typeof patch === 'function' ? patch(previous) : { ...(previous ?? {}), ...patch };
+    const safeNext = next?.token ? next : null;
+
+    sessionRef.current = safeNext;
+    setSessionToken(safeNext?.token ?? null);
+    setSession(safeNext);
   }, []);
 
-  const clearSession = useCallback(() => setSession(null), []);
+  const clearSession = useCallback(() => {
+    sessionRef.current = null;
+    setSessionToken(null);
+    setSession(null);
+  }, []);
 
   const value = useMemo(
     () => ({
       session,
+      sessionId: session?.sessionId ?? null,
       token: session?.token ?? null,
       documentId: session?.documentId ?? null,
       redactionId: session?.redactionId ?? null,

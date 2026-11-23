@@ -1,13 +1,112 @@
 import { useState } from 'react';
-import { FileText, UploadCloud } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { AlertTriangle, LockKeyhole } from 'lucide-react';
+
 import { Stepper } from '../components/shared/Stepper.jsx';
 import { PrivacyNote } from '../components/shared/PrivacyNote.jsx';
-import { Badge } from '../components/ui/Badge.jsx';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card.jsx';
-import { cn } from '../lib/utils.js';
+import { Dropzone } from '../components/upload/Dropzone.jsx';
+import { FileValidationCard } from '../components/upload/FileValidationCard.jsx';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert.jsx';
+import {
+  createSession,
+  destroySession,
+  extractDocument,
+  uploadResume,
+} from '../lib/sessionApi.js';
+import { validateFile } from '../lib/fileValidation.js';
+import { useSession } from '../context/SessionContext.jsx';
 
 export default function UploadPage() {
-  const [isDragging, setIsDragging] = useState(false);
+  const navigate = useNavigate();
+  const { sessionId, documentId, updateSession, clearSession } = useSession();
+
+  const [file, setFile] = useState(null);
+  const [phase, setPhase] = useState('idle');
+  const [progress, setProgress] = useState(0);
+  const [extraction, setExtraction] = useState(null);
+  const [error, setError] = useState(null);
+
+  const busy = ['validating', 'uploading', 'extracting'].includes(phase);
+
+  async function handleFile(selected) {
+    // Replacing a file destroys the previous temporary session first.
+    let activeSessionId = sessionId;
+    if (activeSessionId) {
+      try {
+        await destroySession(activeSessionId);
+      } catch {
+        // The TTL sweeper will clean it up if the network call fails.
+      }
+      clearSession();
+      activeSessionId = null;
+    }
+
+    setFile(selected);
+    setError(null);
+    setExtraction(null);
+    setProgress(0);
+    setPhase('validating');
+
+    const check = await validateFile(selected);
+    if (!check.ok) {
+      setError(check.message);
+      setPhase('error');
+      toast.error(check.message);
+      return;
+    }
+
+    try {
+      const created = await createSession();
+      activeSessionId = created.sessionId;
+      updateSession({
+        sessionId: created.sessionId,
+        token: created.token,
+        expiresAt: created.expiresAt,
+        documentId: null,
+      });
+
+      setPhase('uploading');
+      const uploaded = await uploadResume(created.sessionId, selected, setProgress);
+
+      setPhase('extracting');
+      const result = await extractDocument(created.sessionId, uploaded.documentId);
+
+      setExtraction(result.extraction);
+      updateSession({ documentId: uploaded.documentId });
+      setPhase('done');
+      toast.success('Resume processed. Review what we found.');
+    } catch (uploadError) {
+      if (activeSessionId) {
+        try {
+          await destroySession(activeSessionId);
+        } catch {
+          // The TTL sweeper will clean it up if the network call fails.
+        }
+      }
+      clearSession();
+      setError(uploadError.message ?? 'Upload failed. Try again.');
+      setPhase('error');
+      toast.error(uploadError.message ?? 'Upload failed.');
+    }
+  }
+
+  async function handleRemove() {
+    if (sessionId) {
+      try {
+        await destroySession(sessionId);
+      } catch {
+        // The TTL sweeper will clean it up if the network call fails.
+      }
+    }
+    clearSession();
+    setFile(null);
+    setExtraction(null);
+    setError(null);
+    setProgress(0);
+    setPhase('idle');
+    toast.info('Temporary session destroyed.');
+  }
 
   return (
     <div>
@@ -21,43 +120,64 @@ export default function UploadPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Choose a file</CardTitle>
-            <CardDescription>PDF or DOCX · maximum 10 MB · up to 20 pages</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div
-              onDragEnter={() => setIsDragging(true)}
-              onDragOver={(event) => event.preventDefault()}
-              onDragLeave={() => setIsDragging(false)}
-              className={cn(
-                'flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center transition-colors',
-                isDragging ? 'border-primary bg-primary/5' : 'border-border bg-muted/30',
-              )}
-            >
-              <UploadCloud className="mb-4 h-10 w-10 text-primary" aria-hidden="true" />
-              <p className="font-medium">Drop your resume here</p>
-              <p className="mt-1 text-sm text-muted-foreground">or browse files (Phase 4)</p>
-              <Badge variant="muted" className="mt-4">Upload handling arrives in Phase 4</Badge>
-            </div>
+        <div className="space-y-5 lg:col-span-2">
+          <Dropzone onFile={handleFile} disabled={busy} />
 
-            <div className="flex items-start gap-3 rounded-md border border-border p-4 text-sm">
-              <FileText className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
-              <div className="text-muted-foreground">
-                <p className="font-medium text-foreground">Validation happens twice</p>
-                <p>
-                  First in your browser for fast feedback, then again on the server with
-                  extension, MIME type, magic bytes and size checks.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          {file && (
+            <FileValidationCard
+              file={file}
+              phase={phase}
+              progress={progress}
+              extraction={extraction}
+              error={error}
+              onRemove={handleRemove}
+              onContinue={() => navigate(`/detect/${documentId}`)}
+            />
+          )}
 
-        <div className="space-y-6">
-          <PrivacyNote />
+          {file && extraction?.status === 'needs_ocr' && (
+            <Alert variant="warning">
+              <AlertTriangle className="h-4 w-4 text-warning" aria-hidden="true" />
+              <AlertTitle>Scanned document detected</AlertTitle>
+              <AlertDescription>
+                This PDF has no readable text layer. Local OCR will identify sensitive
+                text and its position in the next phase. We will not claim the resume
+                was sanitized until that verification can run.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {file && extraction?.status === 'unsupported' && (
+            <Alert variant="destructive">
+              <LockKeyhole className="h-4 w-4 text-destructive" aria-hidden="true" />
+              <AlertTitle>Password-protected PDF</AlertTitle>
+              <AlertDescription>
+                We cannot read or redact encrypted files. Export an unprotected copy
+                and upload that instead.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {file && extraction?.status === 'failed' && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
+              <AlertTitle>Could not read this document</AlertTitle>
+              <AlertDescription>
+                The file may contain no text or use an unsupported format. Re-export it
+                as a clean PDF or DOCX and try again.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
         </div>
+
+        <PrivacyNote />
       </div>
     </div>
   );

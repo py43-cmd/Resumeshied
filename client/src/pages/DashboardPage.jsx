@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FileUp, ListChecks, ShieldCheck, Wifi, WifiOff } from 'lucide-react';
 import { apiRequest } from '../lib/api.js';
+import { getSession } from '../lib/sessionApi.js';
 import { useSession } from '../context/SessionContext.jsx';
 import { Badge } from '../components/ui/Badge.jsx';
 import { Button } from '../components/ui/Button.jsx';
@@ -10,8 +11,9 @@ import { PrivacyNote } from '../components/shared/PrivacyNote.jsx';
 import { Skeleton } from '../components/ui/Skeleton.jsx';
 
 export default function DashboardPage() {
-  const { isActive } = useSession();
+  const { isActive, sessionId, documentId } = useSession();
   const [apiState, setApiState] = useState('checking');
+  const [sessionInfo, setSessionInfo] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +30,29 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isActive || !sessionId) {
+      setSessionInfo(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    getSession(sessionId)
+      .then((data) => {
+        if (!cancelled) setSessionInfo(data);
+      })
+      .catch(() => {
+        if (!cancelled) setSessionInfo(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isActive, sessionId]);
+
+  const activeFile = sessionInfo?.files?.[0];
+  const continueId = documentId ?? activeFile?.documentId;
 
   return (
     <div className="space-y-8">
@@ -97,9 +122,18 @@ export default function DashboardPage() {
         <CardContent>
           {isActive ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-4 text-sm">
-              <span>Active temporary session · continue where you left off.</span>
+              <div>
+                <p className="font-medium">{activeFile?.originalName ?? 'Active session'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {activeFile
+                    ? `${activeFile.extractionStatus} · temporary file`
+                    : 'No file uploaded yet'}
+                </p>
+              </div>
               <Button asChild variant="outline" size="sm">
-                <Link to="/upload">Continue</Link>
+                <Link to={continueId ? `/detect/${continueId}` : '/upload'}>
+                  {continueId ? 'Continue' : 'Upload a file'}
+                </Link>
               </Button>
             </div>
           ) : (

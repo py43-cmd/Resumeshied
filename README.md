@@ -9,7 +9,7 @@ them for feedback.
 - [x] Phase 2 — UI/UX design + visual-preservation addendum
 - [x] Phase 3A — Backend foundation
 - [x] Phase 3B — Frontend foundation
-- [ ] Phase 4 — Upload and extraction
+- [x] Phase 4 — Upload and extraction (4A session/upload, 4B extraction, 4C frontend flow)
 - [ ] Phase 5 — PII detection (including local OCR)
 - [ ] Phase 6 — Privacy editor
 - [ ] Phase 7 — Native PDF redaction
@@ -43,6 +43,7 @@ Health check: `GET http://localhost:4000/api/health`
 cd client
 npm install
 npm run dev        # http://localhost:5173
+npm test           # browser-side file validation tests
 npm run build      # production build into client/dist
 ```
 
