@@ -4,7 +4,7 @@ import request from 'supertest';
 import * as mupdf from 'mupdf';
 
 import app from '../src/app.js';
-import { createMultiPagePdf } from './fixtures/documents.js';
+import { createMultiPagePdf, createPdfFromLines } from './fixtures/documents.js';
 
 const NAME = 'Rahul Sharma';
 const EMAIL = 'rahul.sharma@example.com';
@@ -82,6 +82,68 @@ function pageTexts(pdfBytes) {
     doc.destroy();
   }
 }
+
+test('all common phone formats are permanently removed from the download', async () => {
+  const phones = [
+    '+91 98765 43210',
+    '9876543210',
+    '+91-9876543210',
+    '+91 9876543210',
+    '(555) 123-4567',
+    '+1 555-123-4567',
+    '020 7946 0958',
+  ];
+  const SURVIVOR = 'Keep this line visible';
+
+  const sessionResponse = await request(app).post('/api/sessions');
+  assert.equal(sessionResponse.status, 201);
+  const session = sessionResponse.body.data;
+  const upload = await request(app)
+    .post(`/api/sessions/${session.sessionId}/files`)
+    .set('X-Session-Token', session.token)
+    .attach('file', createPdfFromLines([NAME, ...phones.map((phone) => `Phone: ${phone}`), SURVIVOR]), {
+      filename: 'phones.pdf',
+      contentType: 'application/pdf',
+    });
+  assert.equal(upload.status, 201);
+  const documentId = upload.body.data.documentId;
+
+  const extraction = await post(session, documentId, '/extract');
+  assert.equal(extraction.status, 200);
+  const detection = await post(session, documentId, '/detect');
+  assert.equal(detection.status, 200);
+
+  const phoneDetections = detection.body.data.detections.filter((item) => item.type === 'PHONE');
+  assert.equal(phoneDetections.length, phones.length);
+  assert.ok(phoneDetections.every((item) => item.needsReview === false));
+
+  // Simulate the UI: default decisions accept high-confidence regex matches.
+  const decisions = Object.fromEntries(
+    detection.body.data.detections.map((item) => [item.detectionId, 'accepted']),
+  );
+  const plan = await putPlan(session, documentId, { decisions, manualRegions: [] });
+  assert.equal(plan.status, 200);
+  assert.equal(plan.body.data.planStatus, 'ready');
+
+  const redaction = await post(session, documentId, '/redact');
+  assert.equal(redaction.status, 201);
+  assert.equal(redaction.body.data.verification.privacy.status, 'passed');
+
+  const download = await fetchDownload(session, redaction.body.data.redactionId);
+  assert.equal(download.status, 200);
+  const output = pageTexts(download.body).join('\n');
+  assert.ok(output.includes(SURVIVOR), 'non-PII text must survive');
+
+  const digitSequences = phones.map((phone) => phone.replace(/\D/g, '').slice(-7));
+  for (const sequence of digitSequences) {
+    assert.equal(output.includes(sequence), false, `phone digits survived: ${sequence}`);
+  }
+  for (const phone of phones) {
+    assert.equal(output.includes(phone), false, `phone survived: ${phone}`);
+  }
+
+  await destroy(session);
+});
 
 test('full pipeline: multi-page upload to private redacted download', async () => {
   const { session, document } = await uploadDocument();

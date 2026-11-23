@@ -3,8 +3,18 @@
  * character range wins, so specific patterns are listed before generic ones.
  */
 
+/**
+ * Phone formats seen on real resumes. Three alternatives, in priority order:
+ *  1. country code + 9-14 grouped digits   (+91 98765 43210, +1 555-123-4567,
+ *     +44 20 7946 0958, +91-9876543210)
+ *  2. grouped digits without a country code ((555) 123-4567, 020 7946 0958,
+ *     555.123.4567, 98765 43210)
+ *  3. unformatted 10 digits (9876543210)
+ * The `isValid` check below rejects anything that is not 10-15 digits, so
+ * dates, IPs, version numbers and short IDs are filtered out.
+ */
 const phonePattern =
-  /(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)[\s.-]?)?\d{5}[\s.-]\d{5}|\b\d{10}\b|(?:\+\d{1,3}[\s.-]?)?(?:\(\d{3}\)[\s.-]?)?\d{3}[\s.-]\d{3}[\s.-]\d{4}/g;
+  /(?:\+\d{1,3}[\s.-]?)(?:\(\d{1,4}\)[\s.-]?)?(?:\d[\s.-]?){9,14}\d\b|(?:\+\d{1,3}[\s.-]?)?(?:\(\d{1,4}\)[\s.-]?)?\d{2,5}(?:[\s.-]\d{2,5}){1,4}\b|\b\d{10}\b/g;
 
 const dobPattern =
   /\b(?:(DOB|DATE OF BIRTH|BIRTH DATE)\s*:?\s*)?(0?[1-9]|[12]\d|3[01])[/-](0?[1-9]|1[0-2])[/-]((?:19|20)?\d{2})\b/gi;
@@ -38,8 +48,10 @@ export const RULES = [
   {
     type: 'PHONE',
     method: 'regex',
-    confidence: (match) => (/^\d{10}$/.test(match[0]) ? 0.68 : 0.9),
-    reason: (match) => (/^\d{10}$/.test(match[0]) ? 'Unformatted digit sequence' : null),
+    // A validated 10-15 digit sequence on a resume is phone-number shaped.
+    // Accept by default so it is redacted without an extra click; the reviewer
+    // can still click Keep for an ID or other false positive.
+    confidence: 0.9,
     isValid: (match) => {
       const digits = match[0].replace(/\D/g, '');
       return digits.length >= 10 && digits.length <= 15;

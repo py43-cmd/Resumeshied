@@ -84,6 +84,41 @@ test('re-running detection reuses stable IDs from a ready result', async () => {
   await destroy(session);
 });
 
+test('detects every common phone format and accepts them by default', async () => {
+  const phones = [
+    '+91 98765 43210',
+    '9876543210',
+    '+91-9876543210',
+    '+91 9876543210',
+    '(555) 123-4567',
+    '+1 555-123-4567',
+    '020 7946 0958',
+  ];
+  const { session, document } = await upload(
+    createPdfFromLines(['Rahul Sharma', ...phones.map((phone) => `Phone: ${phone}`)]),
+    'phones.pdf',
+    'application/pdf',
+  );
+  await extract(session, document.documentId);
+
+  const response = await detect(session, document.documentId);
+  assert.equal(response.status, 200);
+
+  const detected = response.body.data.detections.filter((item) => item.type === 'PHONE');
+  assert.equal(
+    detected.length,
+    phones.length,
+    `expected ${phones.length} phone detections, got ${detected.length}`,
+  );
+  for (const detection of detected) {
+    assert.equal(detection.needsReview, false, 'valid phones should be redacted by default');
+    assert.equal(detection.maskedValue.includes('98765'), false);
+    assert.equal(detection.maskedValue.includes('123-4567'), false);
+  }
+
+  await destroy(session);
+});
+
 test('detects PII with masked values and page-accurate bboxes', async () => {
   const { session, document } = await upload(
     createPdfFromLines(RESUME_LINES),
