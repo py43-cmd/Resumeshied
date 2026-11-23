@@ -24,8 +24,8 @@ export function Dropzone({ onFile, disabled = false }) {
       onDragLeave={() => setIsDragging(false)}
       onDrop={handleDrop}
       className={cn(
-        'group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-card/60 p-12 text-center shadow-card backdrop-blur-xl transition-all duration-300 hover:border-primary/40 hover:shadow-glow',
-        isDragging && 'border-primary bg-primary/10 shadow-glow',
+        'group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-card/60 p-12 text-center shadow-card transition-colors hover:border-primary/40',
+        isDragging && 'border-primary bg-primary/10',
         disabled && 'pointer-events-none opacity-60',
       )}
     >

@@ -23,8 +23,8 @@ export function Stepper({ current }) {
             <span
               className={cn(
                 'flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold transition-all',
-                complete && 'border-success/40 bg-success/15 text-success shadow-[0_0_12px_hsl(var(--success)/0.25)]',
-                active && 'border-primary/50 bg-primary text-primary-foreground shadow-glow',
+                complete && 'border-success/40 bg-success/15 text-success',
+                active && 'border-primary/50 bg-primary text-primary-foreground',
                 !complete && !active && 'border-border bg-muted/50 text-muted-foreground',
               )}
               aria-current={active ? 'step' : undefined}

@@ -17,14 +17,10 @@ export function AppShell({ children }) {
   const expiry = formatExpiry(expiresAt);
 
   return (
-    <div className="noise-overlay relative flex min-h-screen flex-col">
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 grid-backdrop opacity-40" />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-gradient-to-b from-primary/10 via-accent/5 to-transparent"
-      />
+    <div className="relative flex min-h-screen flex-col">
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 grid-backdrop opacity-25" />
 
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-xl">
         <div className="container relative flex h-16 items-center justify-between gap-4">
           <div className="flex items-center gap-6">
             <Link to="/" className="flex items-center gap-3 font-semibold tracking-tight">
@@ -43,7 +39,6 @@ export function AppShell({ children }) {
           <div className="flex items-center gap-3">
             {isActive ? (
               <Badge variant="accent" className="gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-success shadow-[0_0_10px_hsl(var(--success))]" />
                 <Clock3 className="h-3 w-3" aria-hidden="true" />
                 <span className="hidden sm:inline">Session active{expiry ? ` · until ${expiry}` : ''}</span>
                 <span className="sm:hidden">Active</span>

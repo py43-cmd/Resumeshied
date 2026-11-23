@@ -139,7 +139,7 @@ export default function ExportPage() {
             />
             <CardHeader>
               <div className="flex items-center gap-4">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-success/10 text-success ring-1 ring-success/25 shadow-glow">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-success/10 text-success ring-1 ring-success/25">
                   <FileCheck2 className="h-6 w-6" aria-hidden="true" />
                 </span>
                 <div>
