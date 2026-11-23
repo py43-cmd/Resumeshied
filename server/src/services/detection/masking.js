@@ -44,6 +44,9 @@ export function maskValue(value, type) {
       }
     }
 
+    case 'IMAGE':
+      return '[image]';
+
     case 'DOB':
       return '••/••/••••';
 

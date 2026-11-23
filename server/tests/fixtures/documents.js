@@ -166,6 +166,60 @@ export function createScannedPdf(lines) {
   return buildImagePdf(image.toBuffer('image/jpeg', 95), imageWidth, imageHeight);
 }
 
+/**
+ * A resume-like PDF with a real text layer plus a small logo image in the
+ * header, so image detection and image redaction can be tested together.
+ */
+export function createPdfWithLogo(lines) {
+  const imageWidth = 480;
+  const imageHeight = 160;
+  const logo = createCanvas(imageWidth, imageHeight);
+  const context = logo.getContext('2d');
+  context.fillStyle = '#1e40af';
+  context.fillRect(0, 0, imageWidth, imageHeight);
+  context.fillStyle = '#ffffff';
+  context.font = 'bold 72px sans-serif';
+  context.fillText('LOGO', 24, 100);
+  const jpeg = logo.toBuffer('image/jpeg', 95);
+
+  const logoX = 72;
+  const logoY = 700;
+  const logoWidth = 120;
+  const logoHeight = 40;
+  const textStream = lines
+    .map((line, index) => {
+      const y = 640 - index * 18;
+      return `BT /F1 12 Tf 72 ${y} Td (${escapePdfText(line)}) Tj ET\n`;
+    })
+    .join('');
+  const stream = `q ${logoWidth} 0 0 ${logoHeight} ${logoX} ${logoY} cm /Im0 Do Q\n${textStream}`;
+
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 6 0 R >> /XObject << /Im0 5 0 R >> >> >>',
+    `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}endstream`,
+    `<< /Type /XObject /Subtype /Image /Width ${imageWidth} /Height ${imageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n${jpeg.toString('latin1')}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [];
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(Buffer.byteLength(pdf, 'latin1'));
+    pdf += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
+  }
+
+  const xrefOffset = Buffer.byteLength(pdf, 'latin1');
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+
+  return Buffer.from(pdf, 'latin1');
+}
+
 /** A minimal DOCX with paragraphs and no images. */
 export async function createMinimalDocx(text = 'Hello World') {
   const paragraphs = String(text)

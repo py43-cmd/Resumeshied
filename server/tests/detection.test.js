@@ -7,6 +7,7 @@ import {
   createMinimalDocx,
   createMinimalPdf,
   createPdfFromLines,
+  createPdfWithLogo,
   createTextlessPdf,
 } from './fixtures/documents.js';
 
@@ -115,6 +116,30 @@ test('detects every common phone format and accepts them by default', async () =
     assert.equal(detection.maskedValue.includes('98765'), false);
     assert.equal(detection.maskedValue.includes('123-4567'), false);
   }
+
+  await destroy(session);
+});
+
+test('detects images as confirm-required matches with their page position', async () => {
+  const { session, document } = await upload(
+    createPdfWithLogo(['Rahul Sharma', 'Keep this line']),
+    'resume-with-logo.pdf',
+    'application/pdf',
+  );
+  await extract(session, document.documentId);
+
+  const response = await detect(session, document.documentId);
+  assert.equal(response.status, 200);
+
+  const images = response.body.data.detections.filter((item) => item.type === 'IMAGE');
+  assert.equal(images.length, 1);
+  assert.equal(images[0].pageNumber, 1);
+  assert.equal(images[0].method, 'image');
+  assert.equal(images[0].needsReview, true);
+  assert.equal(images[0].maskedValue, '[image]');
+  assert.equal(images[0].bboxes.length, 1);
+  assert.ok(images[0].bboxes[0].width > 0);
+  assert.ok(images[0].bboxes[0].height > 0);
 
   await destroy(session);
 });

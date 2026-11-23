@@ -4,7 +4,7 @@ import request from 'supertest';
 import * as mupdf from 'mupdf';
 
 import app from '../src/app.js';
-import { createMultiPagePdf, createPdfFromLines } from './fixtures/documents.js';
+import { createMultiPagePdf, createPdfFromLines, createPdfWithLogo } from './fixtures/documents.js';
 
 const NAME = 'Rahul Sharma';
 const EMAIL = 'rahul.sharma@example.com';
@@ -140,6 +140,69 @@ test('all common phone formats are permanently removed from the download', async
   }
   for (const phone of phones) {
     assert.equal(output.includes(phone), false, `phone survived: ${phone}`);
+  }
+
+  await destroy(session);
+});
+
+test('hiding a logo permanently removes its pixels from the download', async () => {
+  const SURVIVOR = 'Keep this line visible';
+  const sessionResponse = await request(app).post('/api/sessions');
+  assert.equal(sessionResponse.status, 201);
+  const session = sessionResponse.body.data;
+  const upload = await request(app)
+    .post(`/api/sessions/${session.sessionId}/files`)
+    .set('X-Session-Token', session.token)
+    .attach('file', createPdfWithLogo([NAME, SURVIVOR]), {
+      filename: 'logo-resume.pdf',
+      contentType: 'application/pdf',
+    });
+  assert.equal(upload.status, 201);
+  const documentId = upload.body.data.documentId;
+
+  const extraction = await post(session, documentId, '/extract');
+  assert.equal(extraction.status, 200);
+  const detection = await post(session, documentId, '/detect');
+  assert.equal(detection.status, 200);
+
+  const image = detection.body.data.detections.find((item) => item.type === 'IMAGE');
+  assert.ok(image, 'logo image must be detected');
+
+  const decisions = Object.fromEntries(
+    detection.body.data.detections.map((item) => [item.detectionId, 'accepted']),
+  );
+  const plan = await putPlan(session, documentId, { decisions, manualRegions: [] });
+  assert.equal(plan.body.data.planStatus, 'ready');
+
+  const redaction = await post(session, documentId, '/redact');
+  assert.equal(redaction.status, 201);
+  assert.equal(redaction.body.data.verification.privacy.status, 'passed');
+
+  const download = await fetchDownload(session, redaction.body.data.redactionId);
+  assert.equal(download.status, 200);
+  const text = pageTexts(download.body).join('\n');
+  assert.ok(text.includes(SURVIVOR));
+
+  // Render the downloaded page and sample the centre of the old logo area.
+  // The blue logo must be gone (white/near-white after redaction).
+  const doc = mupdf.Document.openDocument(new Uint8Array(download.body), 'application/pdf');
+  try {
+    const page = doc.loadPage(0);
+    const pix = page.toPixmap(mupdf.Matrix.scale(1, 1), mupdf.ColorSpace.DeviceRGB, false, false);
+    const pixels = pix.getPixels();
+    const width = pix.getWidth();
+    const components = pix.getNumberOfComponents();
+    // Logo: x=72..192, y(top-left)=52..92 -> centre (132, 72).
+    const offset = (72 * width + 132) * components;
+    const [red, green, blue] = [pixels[offset], pixels[offset + 1], pixels[offset + 2]];
+    assert.ok(
+      red > 200 && green > 200 && blue > 200,
+      `logo pixels survived in the download (rgb ${red},${green},${blue})`,
+    );
+    pix.destroy();
+    page.destroy();
+  } finally {
+    doc.destroy();
   }
 
   await destroy(session);

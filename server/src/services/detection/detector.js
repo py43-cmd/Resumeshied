@@ -172,6 +172,30 @@ function detectNamesFromItems(textItems, spans, claimedRanges, pageNumber) {
   return detections;
 }
 
+function detectImages(page) {
+  const boxes = (page.imageBoxes ?? []).filter(
+    (box) =>
+      box &&
+      [box.x, box.y, box.width, box.height].every(Number.isFinite) &&
+      box.width > 0 &&
+      box.height > 0,
+  );
+
+  // Images cannot be classified locally as photo, logo or chart, so every
+  // image match is marked for human confirmation.
+  return boxes.map((bbox) =>
+    createDetection({
+      type: 'IMAGE',
+      method: 'image',
+      confidence: 0.8,
+      pageNumber: page.pageNumber,
+      bboxes: [bbox],
+      value: 'image',
+      reason: 'Image on this page — hide it if it is a photo or logo',
+    }),
+  );
+}
+
 function detectTextOnly(fullText) {
   const { detections } = applyRules(String(fullText ?? ''), [], null);
   const lines = String(fullText ?? '')
@@ -241,6 +265,7 @@ export function runDetection(extraction) {
     detections.push(
       ...detectNamesFromItems(page.textItems, spans, claimedRanges, page.pageNumber),
     );
+    detections.push(...detectImages(page));
   }
 
   return {

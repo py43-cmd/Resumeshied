@@ -4,6 +4,7 @@ export const DETECTION_TYPE_LABELS = {
   NAME: 'Name',
   EMAIL: 'Email address',
   PHONE: 'Phone number',
+  IMAGE: 'Image / logo',
   LINKEDIN: 'LinkedIn profile',
   GITHUB: 'GitHub profile',
   DOB: 'Date of birth',
@@ -48,6 +49,7 @@ export function typeLabel(type) {
 export function methodLabel(method) {
   if (method === 'regex') return 'Pattern match';
   if (method === 'heuristic') return 'Heuristic';
+  if (method === 'image') return 'Image position';
   return String(method ?? 'Unknown');
 }
 
