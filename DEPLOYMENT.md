@@ -49,20 +49,24 @@ Render will create one web service:
 
 ### 1.2 Set the one required value
 
-Render will prompt for `CLIENT_ORIGIN` because it is marked `sync: false`.
+Render will prompt for `CLIENT_ORIGINS` because it is marked `sync: false`.
 
-Enter the exact Vercel frontend origin:
+Enter the exact Vercel frontend origin. To allow preview deployments too, add
+their URLs as a comma-separated list:
 
 ```text
-https://<your-project>.vercel.app
+https://<your-project>.vercel.app, https://<your-project>-git-main-<team>.vercel.app
 ```
+
+The API only allows origins from this list. If the browser's URL is not an
+exact match (including every Vercel preview URL), the request is blocked.
 
 Do not add:
 
 - a path
 - a trailing slash
 - a wildcard
-- `http://` instead of `https://`
+- `http://` instead of `https://` (except `http://localhost` for local development)
 
 Wrong:
 
@@ -77,6 +81,9 @@ Right:
 ```text
 https://resumeshield.vercel.app
 ```
+
+The older single-origin variable `CLIENT_ORIGIN` is still supported, but
+`CLIENT_ORIGINS` takes precedence when both are set.
 
 ### 1.3 Why the plan matters
 
@@ -104,7 +111,7 @@ These are set by `render.yaml`:
 | `MAX_UPLOAD_BYTES` | `10485760` | 10 MiB. |
 | `TEMP_ROOT` | `/tmp/resumeshield` | Short-lived processing files only. |
 | `LOG_LEVEL` | `info` | Never log resume text, file names, or values. |
-| `CLIENT_ORIGIN` | Set in dashboard | Exact Vercel origin. |
+| `CLIENT_ORIGINS` | Set in dashboard | Comma-separated exact Vercel origins (production + previews). |
 
 Do **not** set `PORT`. Render injects its own `PORT` value and the app reads it.
 
@@ -195,8 +202,9 @@ Expected: 29 pass, 0 fail, and a successful Vite build into `client/dist`.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | Browser calls `https://<vercel-domain>/api/...` and gets HTML or 404 | `VITE_API_URL` was not set when Vercel built the client | Set `VITE_API_URL=https://<api-domain>/api` and redeploy the frontend. |
-| CORS error in browser console | `CLIENT_ORIGIN` does not exactly match the Vercel origin | Set it to the exact origin, e.g. `https://resumeshield.vercel.app`. |
-| Preview deployment is blocked by CORS | API allows only the production Vercel origin | Use a staging API with the preview origin, or temporarily set `CLIENT_ORIGIN` to that preview URL. |
+| CORS error in browser console (`Access-Control-Allow-Origin` shows `http://localhost:5173`) | `CLIENT_ORIGINS` was never set on Render, so the localhost default is used | Set `CLIENT_ORIGINS` to the exact Vercel origin and redeploy the API. |
+| CORS error in browser console | Origin is not an exact match for an allowlisted entry | Check the protocol, host, trailing slash, and path; restart the API after changes. |
+| Preview deployment is blocked by CORS | Preview URL is not in the allowlist | Add that exact preview URL to the comma-separated `CLIENT_ORIGINS` value. |
 | `SESSION_EXPIRED` immediately after upload | API restarted, scaled to multiple instances, or several workers are running | Use one API instance. Sessions are in-memory by design. |
 | `SESSION_EXPIRED` after some idle time on Render | Free instance slept and restarted | Upgrade from Free to the `1c-2g` plan in `render.yaml`. |
 | Render deploy stays in "Starting" or fails health check | App is not listening on Render's injected `PORT`, or build used the wrong directory | Leave `PORT` unset, keep Root Directory `server`, and use `npm ci` / `npm start`. |

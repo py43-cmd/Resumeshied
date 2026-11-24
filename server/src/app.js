@@ -20,7 +20,11 @@ app.disable('x-powered-by');
 app.use(helmet());
 app.use(
   cors({
-    origin: config.clientOrigin,
+    // The cors package reflects the matching entry from a list. Keep a single
+    // entry as a string so the development-only '*' wildcard still works.
+    origin: config.clientOrigins.length === 1
+      ? config.clientOrigins[0]
+      : config.clientOrigins,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-Session-Token', 'X-Request-Id'],
   }),

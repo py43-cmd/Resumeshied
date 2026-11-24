@@ -137,7 +137,7 @@ first import in `server/src/app.js`.
 | Client HTTP | axios | Single instance, envelope unwrapped in `client/src/lib/api.js` |
 | Backend | Express 4, Node.js 20+ | ESM, `"type": "module"` |
 | Security headers | helmet | `X-Powered-By` disabled |
-| CORS | cors | Exact origin allowlist; no wildcards in production |
+| CORS | cors | Exact origin allowlist (multiple origins supported); no wildcards in production |
 | Uploads | multer | Memory storage, magic-byte checks before disk write |
 | PDF text/geometry | `pdfjs-dist@4.10.38` | Legacy build path; do not upgrade to v6 on Node 20/22 |
 | PDF rewriting | `mupdf@1.28.6` | Official Artifex JS/WASM build; no native binary |
@@ -279,12 +279,20 @@ The Vite dev server proxies `/api` to `http://localhost:4000`, so leave
 | `NODE_ENV` | `development` | `production` enables strict origin checks. |
 | `PORT` | `4000` | Listener port. Do not set on Render; Render injects it. |
 | `LOG_LEVEL` | `info` | Structured logging level. |
-| `CLIENT_ORIGIN` | `http://localhost:5173` | Exact browser origin allowed by CORS. |
+| `CLIENT_ORIGINS` | `http://localhost:5173` | Comma-separated exact browser origins allowed by CORS. |
+| `CLIENT_ORIGIN` | — | Legacy single-origin alias; ignored when `CLIENT_ORIGINS` is set. |
 | `SESSION_TTL_SECONDS` | `1800` | Session lifetime; temp files are deleted on expiry. |
 | `MAX_UPLOAD_BYTES` | `10485760` | Per-file upload cap (10 MiB). |
 | `TEMP_ROOT` | OS temp dir | Parent directory for per-session folders. |
 
-`CLIENT_ORIGIN` must not contain `*` when `NODE_ENV=production`.
+Example for production with previews:
+
+```text
+CLIENT_ORIGINS=https://resumeshield.vercel.app, https://resumeshield-git-main-py431035.vercel.app
+```
+
+Origins must be exact: no `*`, no path, no trailing slash. Production startup
+rejects malformed or wildcard origins. `http://` is allowed only for localhost.
 
 ### Client (`client/.env`)
 
@@ -442,7 +450,7 @@ PII never reaches the public view layer.
 8. **Privacy gate.** If verification finds text remaining in an approved box,
    the redacted file is not stored and download is blocked.
 
-CORS is configured from `CLIENT_ORIGIN`. Production requires one exact origin.
+CORS is configured from `CLIENT_ORIGINS` (comma-separated exact origins). Production rejects wildcards and malformed values.
 
 ---
 
@@ -559,7 +567,7 @@ Render is defined by [`render.yaml`](render.yaml):
 
 - Node 20, plan `1c-2g`, one instance
 - health check `/api/health`
-- `CLIENT_ORIGIN` is the only prompted value
+- `CLIENT_ORIGINS` is the only prompted value
 - do not set `PORT`
 - do not attach a persistent disk
 - do not use the Free plan: sleeping destroys in-memory sessions
@@ -571,7 +579,7 @@ Required production environment variables:
 ```bash
 # Render
 NODE_ENV=production
-CLIENT_ORIGIN=https://<vercel-domain>
+CLIENT_ORIGINS=https://<vercel-domain>, https://<preview-domain>
 SESSION_TTL_SECONDS=1800
 MAX_UPLOAD_BYTES=10485760
 TEMP_ROOT=/tmp/resumeshield
@@ -636,7 +644,7 @@ curl https://resumeshied.onrender.com/api/health
 | `SESSION_EXPIRED` on Render after idle time | Free or sleeping instance restarted | Use the `1c-2g` plan and one instance |
 | `400 INVALID_REVIEW_DECISION` | Stale detection IDs, often from React StrictMode double effects | Client sends current IDs only; re-run detection if the page is stale |
 | Browser calls Vercel `/api/...` and gets HTML/404 | `VITE_API_URL` missing at Vercel build time | Set it to the Render API URL with `/api`, then redeploy |
-| CORS error in browser console | `CLIENT_ORIGIN` does not exactly match the Vercel origin | Set exact origin, e.g. `https://resumeshield.vercel.app` |
+| CORS error in browser console | Origin is not in `CLIENT_ORIGINS`, or the variable is unset (localhost default) | Set exact origins, e.g. `CLIENT_ORIGINS=https://resumeshield.vercel.app, https://<preview>.vercel.app` |
 | `FILE_TOO_LARGE` in production | Host/proxy body limit below `MAX_UPLOAD_BYTES` | Raise host limit or lower `MAX_UPLOAD_BYTES` |
 | `Cannot find module 'mupdf'` | Dependencies not installed in `server/` | `cd server && npm ci` |
 | `Promise.try is not a function` | `pdfjs-dist` v6 on Node 20/22 | Keep `pdfjs-dist@4.10.38` pinned and use the legacy build path |

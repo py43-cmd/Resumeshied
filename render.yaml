@@ -14,7 +14,7 @@ services:
         value: "20"
       - key: NODE_ENV
         value: production
-      - key: CLIENT_ORIGIN
+      - key: CLIENT_ORIGINS
         sync: false
       - key: SESSION_TTL_SECONDS
         value: "1800"
