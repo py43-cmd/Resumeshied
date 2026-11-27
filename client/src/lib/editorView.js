@@ -7,6 +7,7 @@ export const PRIVACY_BLOCKER_MESSAGES = {
   ENCRYPTED_PDF: 'Encrypted PDFs cannot be processed securely.',
   NO_TEXT_LAYER: 'No text layer was found. Run local OCR or mark areas manually.',
   OCR_NO_TEXT: 'Local OCR did not find enough readable text to redact safely.',
+  NO_REDACTIONS_REQUESTED: 'No areas are marked to hide. Hide at least one match or add a manual area.',
 };
 
 export function bboxToPercent(bbox, pageWidth, pageHeight) {

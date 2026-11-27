@@ -11,6 +11,7 @@ test('GET /api/health returns the standard success envelope', async () => {
   assert.equal(response.body.success, true);
   assert.equal(response.body.data.status, 'ok');
   assert.equal(response.body.data.service, 'resumeshield-api');
+  assert.ok('commit' in response.body.data, 'health must expose the deployed commit');
   assert.ok(response.body.data.uptimeSeconds >= 0);
   assert.ok(response.body.meta.requestId);
 

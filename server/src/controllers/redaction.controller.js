@@ -72,6 +72,7 @@ export async function createRedactionHandler(req, res) {
 
   const record = await storeRedaction(req.session, result.bytes, {
     documentId: document.documentId,
+    planId: document.redactionPlan?.planId ?? null,
     pageCount: result.pageCount,
     redactedBoxCount: result.redactedBoxCount,
     removedAnnotationCount: result.removedAnnotationCount,
@@ -103,6 +104,13 @@ export async function downloadRedactionHandler(req, res) {
   const record = findRedaction(req.session, req.params.redactionId);
   const document = findDocument(req.session, record.documentId);
   assertReadyPlan(document);
+
+  if (record.planId && record.planId !== document.redactionPlan?.planId) {
+    throw ApiError.conflict(
+      'REDACTION_STALE',
+      'The redaction plan changed after this file was created. Regenerate the PDF.',
+    );
+  }
 
   // Defense in depth: even a stored file is never served unless the recorded
   // privacy verdict passed at creation time.

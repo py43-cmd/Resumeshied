@@ -207,3 +207,46 @@ test('a download cannot be retrieved without a valid session token', async () =>
 
   await destroy(session);
 });
+
+test('blocks a plan with no approved redaction areas', async () => {
+  const { session, document, detections } = await prepare(createPdfFromLines(LINES));
+  const decisions = Object.fromEntries(
+    detections.detections.map((detection) => [detection.detectionId, 'rejected']),
+  );
+
+  const plan = await putPlan(session, document.documentId, { decisions, manualRegions: [] });
+  assert.equal(plan.status, 200);
+  assert.equal(plan.body.data.planStatus, 'blocked');
+  assert.ok(plan.body.data.plan.privacyBlockers.includes('NO_REDACTIONS_REQUESTED'));
+
+  await destroy(session);
+});
+
+test('blocks a stored download when the review plan changes', async () => {
+  const { session, document, detections } = await prepare(createPdfFromLines(LINES));
+
+  const accepted = await putPlan(session, document.documentId, {
+    decisions: acceptedDecisions(detections),
+    manualRegions: [],
+  });
+  assert.equal(accepted.body.data.planStatus, 'ready');
+
+  const created = await post(session, document.documentId, '/redact');
+  assert.equal(created.status, 201);
+
+  const changed = await putPlan(session, document.documentId, {
+    decisions: acceptedDecisions(detections),
+    manualRegions: [],
+  });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.body.data.planStatus, 'ready');
+  assert.notEqual(changed.body.data.plan.planId, accepted.body.data.plan.planId);
+
+  const download = await request(app)
+    .get(`/api/sessions/${session.sessionId}/redactions/${created.body.data.redactionId}/download`)
+    .set('X-Session-Token', session.token);
+  assert.equal(download.status, 409);
+  assert.equal(download.body.error.code, 'REDACTION_STALE');
+
+  await destroy(session);
+});

@@ -184,6 +184,12 @@ export function buildRedactionPlan(document, payload = {}) {
     });
   });
 
+  // A "ready" plan with no effective boxes produces a file that looks
+  // redacted but contains no black marks. Treat that as blocked, not success.
+  if (items.length === 0 || items.every((item) => item.bboxes.length === 0)) {
+    privacyBlockers.add('NO_REDACTIONS_REQUESTED');
+  }
+
   const warnings = new Set([
     ...(extraction.warnings ?? []),
     ...(detections.warnings ?? []),

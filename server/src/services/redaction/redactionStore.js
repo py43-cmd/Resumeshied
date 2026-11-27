@@ -20,6 +20,7 @@ export async function storeRedaction(session, bytes, metadata) {
   const record = {
     redactionId,
     documentId: metadata.documentId,
+    planId: metadata.planId ?? null,
     storedName,
     absolutePath,
     pageCount: metadata.pageCount,
