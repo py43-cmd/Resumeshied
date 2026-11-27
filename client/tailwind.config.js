@@ -57,13 +57,14 @@ export default {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
+        cta: 'linear-gradient(100deg, #6a36fb 0%, #7f57fb 100%)',
         'accent-sheen':
-          'linear-gradient(110deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 55%, hsl(258 90% 72%) 100%)',
+          'linear-gradient(110deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 55%, hsl(249 100% 78%) 100%)',
       },
       boxShadow: {
-        card: 'inset 0 1px 0 rgba(255,255,255,0.035), 0 12px 40px rgba(0,0,0,0.32)',
-        panel: 'inset 0 1px 0 rgba(255,255,255,0.045), 0 28px 80px rgba(0,0,0,0.55)',
-        glow: '0 0 0 1px hsl(var(--primary) / 0.22), 0 18px 50px hsl(var(--primary) / 0.14)',
+        card: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 12px 34px rgba(0,0,0,0.28)',
+        panel: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 28px 70px rgba(0,0,0,0.5)',
+        glow: '0 0 0 1px hsl(var(--accent) / 0.25), 0 16px 48px hsl(258 90% 50% / 0.18)',
       },
     },
   },

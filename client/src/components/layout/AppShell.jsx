@@ -1,5 +1,5 @@
 import { Link, NavLink } from 'react-router-dom';
-import { Clock3, LayoutDashboard, UploadCloud } from 'lucide-react';
+import { Clock3, LayoutDashboard, LockKeyhole, UploadCloud } from 'lucide-react';
 
 import { useSession } from '../../context/SessionContext.jsx';
 import { BrandMark } from '../ui/BrandMark.jsx';
@@ -24,7 +24,7 @@ export function AppShell({ children }) {
 
   return (
     <div className="relative flex min-h-screen flex-col">
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 grid-backdrop opacity-25" />
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 grid-backdrop opacity-[0.12]" />
 
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-xl">
         <div className="relative">
@@ -107,8 +107,11 @@ export function AppShell({ children }) {
 
       <main className="container relative z-10 flex-1 py-10">{children}</main>
 
-      <footer className="relative z-10 border-t border-border py-5 text-center text-xs text-muted-foreground">
-        Temporary processing only · Files are deleted when your session expires
+      <footer className="relative z-10 border-t border-border py-5">
+        <div className="container flex flex-wrap items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+          <LockKeyhole className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+          Temporary processing only · Files are deleted when your session expires
+        </div>
       </footer>
     </div>
   );
