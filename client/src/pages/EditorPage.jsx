@@ -342,7 +342,7 @@ export default function EditorPage() {
                 <div>
                   <CardTitle>Original page</CardTitle>
                   <CardDescription>
-                    Red overlays show what will be removed from the final PDF.
+                    Solid black boxes show what will be permanently removed.
                   </CardDescription>
                 </div>
                 {isPdf && pageCount > 1 && (

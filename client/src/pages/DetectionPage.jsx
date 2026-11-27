@@ -241,7 +241,7 @@ export default function DetectionPage() {
               <CardHeader>
                 <CardTitle>Document preview</CardTitle>
                 <CardDescription>
-                  Highlight overlays arrive with the redaction editor.
+                  Black redaction boxes appear in the review editor.
                 </CardDescription>
               </CardHeader>
               <CardContent>

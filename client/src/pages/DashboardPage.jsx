@@ -162,7 +162,7 @@ export default function DashboardPage() {
               </li>
               <li className="flex gap-3 rounded-lg bg-muted/25 p-2.5">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
-                Native redaction, not black boxes
+                Solid black PDF redaction
               </li>
               <li className="flex gap-3 rounded-lg bg-muted/25 p-2.5">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />

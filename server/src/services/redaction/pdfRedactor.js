@@ -83,8 +83,11 @@ function applyBoxes(page, boxes) {
     annotation.update();
   }
 
+  // black_boxes=true paints the cleared area with solid #000000. The removal
+  // flags below still delete the underlying text, image pixels and covered
+  // line art, so this is a real redaction, not a cosmetic overlay.
   page.applyRedactions(
-    false,
+    true,
     mupdf.PDFPage.REDACT_IMAGE_PIXELS,
     mupdf.PDFPage.REDACT_LINE_ART_REMOVE_IF_COVERED,
     mupdf.PDFPage.REDACT_TEXT_REMOVE,

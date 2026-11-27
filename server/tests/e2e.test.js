@@ -189,7 +189,7 @@ test('hiding a logo permanently removes its pixels from the download', async () 
   assert.ok(text.includes(SURVIVOR));
 
   // Render the downloaded page and sample the centre of the old logo area.
-  // The blue logo must be gone (white/near-white after redaction).
+  // The blue logo must be gone, replaced by a solid black redaction box.
   const doc = mupdf.Document.openDocument(new Uint8Array(download.body), 'application/pdf');
   try {
     const page = doc.loadPage(0);
@@ -201,8 +201,8 @@ test('hiding a logo permanently removes its pixels from the download', async () 
     const offset = (72 * width + 132) * components;
     const [red, green, blue] = [pixels[offset], pixels[offset + 1], pixels[offset + 2]];
     assert.ok(
-      red > 200 && green > 200 && blue > 200,
-      `logo pixels survived in the download (rgb ${red},${green},${blue})`,
+      red < 50 && green < 50 && blue < 50,
+      `logo area is not a solid black redaction (rgb ${red},${green},${blue})`,
     );
     pix.destroy();
     page.destroy();
@@ -275,11 +275,11 @@ test('redacts an icon-adjacent phone value while the vector icon survives', asyn
     const [red, green, blue] = sample(59, 69);
     assert.ok(blue > 180 && red < 80 && green < 80, `icon was removed (rgb ${red},${green},${blue})`);
 
-    // The value's area is clear after permanent redaction.
+    // The value's area is a solid black box after permanent redaction.
     const cleared = sample(110, 66);
     assert.ok(
-      cleared.every((channel) => channel > 200),
-      `phone area was not cleared (rgb ${cleared.join(',')})`,
+      cleared.every((channel) => channel < 50),
+      `phone area is not a solid black redaction (rgb ${cleared.join(',')})`,
     );
 
     pix.destroy();

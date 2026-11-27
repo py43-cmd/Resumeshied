@@ -26,7 +26,7 @@ function redactWithBox(bytes, box) {
   annotation.setRect([box.x, box.y, box.x + box.width, box.y + box.height]);
   annotation.update();
   page.applyRedactions(
-    false,
+    true,
     mupdf.PDFPage.REDACT_IMAGE_PIXELS,
     mupdf.PDFPage.REDACT_LINE_ART_REMOVE_IF_COVERED,
     mupdf.PDFPage.REDACT_TEXT_REMOVE,

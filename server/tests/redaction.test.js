@@ -70,6 +70,30 @@ function extractText(pdfBytes) {
   }
 }
 
+/** Sample one rendered pixel: bbox coordinates are top-left PDF points. */
+function samplePixel(pdfBytes, x, y) {
+  const doc = mupdf.Document.openDocument(new Uint8Array(pdfBytes), 'application/pdf');
+  try {
+    const page = doc.loadPage(0);
+    const pix = page.toPixmap(
+      mupdf.Matrix.scale(1, 1),
+      mupdf.ColorSpace.DeviceRGB,
+      false,
+      false,
+    );
+    const width = pix.getWidth();
+    const components = pix.getNumberOfComponents();
+    const pixels = pix.getPixels();
+    const offset = (Math.floor(y) * width + Math.floor(x)) * components;
+    const rgb = [pixels[offset], pixels[offset + 1], pixels[offset + 2]];
+    pix.destroy();
+    page.destroy();
+    return rgb;
+  } finally {
+    doc.destroy();
+  }
+}
+
 test('creates a permanently redacted PDF and downloads it privately', async () => {
   const { session, document, detections } = await prepare(createPdfFromLines(LINES));
 
@@ -108,6 +132,19 @@ test('creates a permanently redacted PDF and downloads it privately', async () =
   const rawBytes = download.body.toString('latin1');
   assert.equal(rawBytes.includes(NAME), false);
   assert.equal(rawBytes.includes(EMAIL), false);
+
+  // The approved box is painted solid black in the downloaded PDF, not white
+  // or a transparent overlay. Sampling the detection box keeps this tied to
+  // the real coordinates rather than a hard-coded pixel location.
+  const nameBox = detections.detections.find((item) => item.type === 'NAME')?.bboxes?.[0];
+  assert.ok(nameBox, 'the name detection must carry a page coordinate');
+  const centerX = nameBox.x + nameBox.width / 2;
+  const centerY = nameBox.y + nameBox.height / 2;
+  const fill = samplePixel(download.body, centerX, centerY);
+  assert.ok(
+    fill.every((channel) => channel <= 10),
+    `redaction fill must be solid black (rgb ${fill.join(',')})`,
+  );
 
   await destroy(session);
 });

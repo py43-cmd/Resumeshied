@@ -446,7 +446,8 @@ PII never reaches the public view layer.
 6. **Private binaries.** Page previews and downloads require `X-Session-Token`
    and are marked `no-store`.
 7. **Native redaction only.** Text and image pixels are removed from the PDF
-   object stream; black rectangles over recoverable text are not used.
+   object stream, then cleared areas are painted solid black. Black rectangles
+   are never used to cover text that is still recoverable.
 8. **Privacy gate.** If verification finds text remaining in an approved box,
    the redacted file is not stored and download is blocked.
 
