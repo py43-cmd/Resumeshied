@@ -83,34 +83,33 @@ export function FileValidationCard({
         </div>
       </div>
 
-      {(phase === 'uploading' || phase === 'extracting') && (
+      {busy && (
         <div className="mt-5 rounded-xl border border-border/70 bg-background/30 p-4">
           <div className="mb-2.5 flex items-center justify-between gap-3 text-xs">
             <span className="font-medium text-foreground">
-              {phase === 'uploading' ? 'Uploading…' : 'Reading document…'}
+              {phase === 'validating'
+                ? 'Checking file…'
+                : phase === 'uploading'
+                  ? 'Uploading…'
+                  : 'Reading document…'}
             </span>
             <span className="tabular-nums text-muted-foreground">
-              {phase === 'uploading' ? `${progress}%` : 'Almost done'}
+              {phase === 'uploading' ? `${progress}%` : 'Working'}
             </span>
           </div>
-          <Progress value={phase === 'extracting' ? 100 : progress} className="h-1.5" />
+          <Progress
+            value={progress}
+            indeterminate={phase !== 'uploading'}
+            label={`${phase} progress`}
+            className="h-1.5"
+          />
           <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
-            {phase === 'uploading'
-              ? 'Transferring your file to the temporary session.'
-              : 'Extracting text and page layout for detection.'}
+            {phase === 'validating'
+              ? 'Confirming the file type and size before anything is uploaded.'
+              : phase === 'uploading'
+                ? 'Transferring your file to the temporary session.'
+                : 'Extracting text and page layout for detection.'}
           </p>
-        </div>
-      )}
-
-      {error && (
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
-          <span className="inline-flex items-center gap-2 text-xs font-medium text-destructive">
-            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Upload failed — see the details below.
-          </span>
-          <Button variant="ghost" size="sm" onClick={onRemove}>
-            Try again
-          </Button>
         </div>
       )}
 

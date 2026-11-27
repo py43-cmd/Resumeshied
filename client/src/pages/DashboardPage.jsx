@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import { apiRequest } from '../lib/api.js';
+import { resumeAction, sessionStatusLabel } from '../lib/dashboardView.js';
 import { getSession } from '../lib/sessionApi.js';
 import { useSession } from '../context/SessionContext.jsx';
 import { Badge } from '../components/ui/Badge.jsx';
@@ -21,7 +22,7 @@ import { PrivacyNote } from '../components/shared/PrivacyNote.jsx';
 import { Skeleton } from '../components/ui/Skeleton.jsx';
 
 export default function DashboardPage() {
-  const { isActive, sessionId, documentId } = useSession();
+  const { isActive, sessionId, documentId, redactionId, session } = useSession();
   const [apiState, setApiState] = useState('checking');
   const [sessionInfo, setSessionInfo] = useState(null);
 
@@ -62,7 +63,13 @@ export default function DashboardPage() {
   }, [isActive, sessionId]);
 
   const activeFile = sessionInfo?.files?.[0];
-  const continueId = documentId ?? activeFile?.documentId;
+  const action = resumeAction({
+    isActive,
+    documentId: documentId ?? activeFile?.documentId ?? null,
+    redactionId,
+    activeFile,
+    reviewDocumentId: session?.review?.documentId ?? null,
+  });
 
   return (
     <div className="space-y-8">
@@ -73,9 +80,9 @@ export default function DashboardPage() {
         />
         <div className="relative flex flex-wrap items-start justify-between gap-5">
           <div className="space-y-3">
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Dashboard</h1>
+            <h1 className="text-section font-semibold">Workspace</h1>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-              Protect your resume before sharing it for feedback. Every file is processed in a
+              Pick up where you left off or start with a new file. Every document is processed in a
               temporary private session.
             </p>
           </div>
@@ -111,17 +118,17 @@ export default function DashboardPage() {
         />
         <MetricCard
           label="Document"
-          value={activeFile ? 'Ready' : 'Not uploaded'}
+          value={sessionStatusLabel(isActive, activeFile?.extractionStatus)}
           icon={FileUp}
           tone={activeFile ? 'primary' : 'muted'}
           hint={activeFile?.originalName ?? 'Waiting for a file'}
         />
         <MetricCard
-          label="Verification"
-          value={sessionInfo ? 'Local' : 'Pending'}
+          label="Next step"
+          value={action.status}
           icon={ShieldCheck}
-          tone={sessionInfo ? 'accent' : 'muted'}
-          hint="Privacy checks before download"
+          tone={action.to.includes('/export') ? 'success' : 'accent'}
+          hint={action.label}
         />
       </div>
 
@@ -131,18 +138,33 @@ export default function DashboardPage() {
             <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
               <FileUp className="h-5 w-5" aria-hidden="true" />
             </span>
-            <CardTitle>Upload a resume</CardTitle>
-            <CardDescription>PDF or DOCX · up to 10 MB · text-based or scanned</CardDescription>
+            <CardTitle>Continue your redaction</CardTitle>
+            <CardDescription>
+              {activeFile?.originalName ?? 'PDF or DOCX · up to 10 MB · text-based or scanned'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="rounded-xl border border-dashed border-border bg-muted/25 p-8 text-center text-sm text-muted-foreground">
-              Drag-and-drop upload is implemented in Phase 4. The upload flow starts on the Upload page.
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/25 p-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{action.status}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {action.label} · temporary session only
+                </p>
+              </div>
+              <Badge variant={isActive ? 'success' : 'muted'}>
+                {isActive ? 'Session active' : 'No session'}
+              </Badge>
             </div>
-            <Button asChild variant="outline">
-              <Link to="/upload">
-                Choose a file <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button asChild>
+                <Link to={action.to}>
+                  {action.label} <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/upload">Choose another file</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -192,9 +214,7 @@ export default function DashboardPage() {
                 </p>
               </div>
               <Button asChild variant="outline" size="sm">
-                <Link to={continueId ? `/detect/${continueId}` : '/upload'}>
-                  {continueId ? 'Continue' : 'Upload a file'}
-                </Link>
+                <Link to={action.to}>{action.label}</Link>
               </Button>
             </div>
           ) : (

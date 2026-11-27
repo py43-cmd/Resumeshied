@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   AlertTriangle,
@@ -34,7 +34,11 @@ import {
   saveRedactionPlan,
 } from '../lib/editorApi.js';
 import {
+  decisionsFromPlan,
+  editorFooterMessage,
+  filterDetectionsByPage,
   groupByType,
+  pageFilterOptions,
   planLabel,
   privacyBlockerMessages,
   toPlanDecisions,
@@ -44,7 +48,7 @@ import {
   typeLabel,
   warningMessages,
 } from '../lib/detectionView.js';
-import { cn } from '../lib/utils.js';
+import { cn, createId } from '../lib/utils.js';
 
 export default function EditorPage() {
   const { documentId } = useParams();
@@ -58,6 +62,9 @@ export default function EditorPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(null);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
+  const [pageFilter, setPageFilter] = useState('all');
   const [plan, setPlan] = useState(null);
   const [phase, setPhase] = useState('loading');
   const [error, setError] = useState(null);
@@ -88,14 +95,17 @@ export default function EditorPage() {
       if (data.detectionStatus === 'pending' || data.detectionStatus === 'needs_ocr') {
         data = await runDetection(sessionId, documentId);
       }
-      setDetections(data.detections ?? []);
+      const currentDetections = data.detections ?? [];
+      setDetections(currentDetections);
 
       const stored = session?.review?.documentId === documentId ? session.review.decisions : null;
-      setReviewState({ ...initialReviewState(data.detections ?? []), ...(stored ?? {}) });
+      const baseState = { ...initialReviewState(currentDetections), ...(stored ?? {}) };
+      setReviewState(baseState);
 
       try {
         const saved = await getRedactionPlan(sessionId, documentId);
         setPlan(saved.planStatus === 'pending' ? null : saved);
+        setReviewState(decisionsFromPlan(saved, currentDetections, baseState));
         const regions = (saved.plan?.items ?? [])
           .filter((item) => item.source === 'manual')
           .flatMap((item) =>
@@ -128,6 +138,7 @@ export default function EditorPage() {
     let cancelled = false;
     let createdUrl = null;
     setPreviewUrl(null);
+    setPreviewError(null);
     setPreviewLoading(true);
 
     (async () => {
@@ -136,8 +147,13 @@ export default function EditorPage() {
         if (cancelled) return;
         createdUrl = URL.createObjectURL(blob);
         setPreviewUrl(createdUrl);
-      } catch {
-        if (!cancelled) setPreviewUrl(null);
+      } catch (previewErrorValue) {
+        if (!cancelled) {
+          setPreviewUrl(null);
+          setPreviewError(
+            previewErrorValue.message ?? 'The page image could not be loaded.',
+          );
+        }
       } finally {
         if (!cancelled) setPreviewLoading(false);
       }
@@ -147,7 +163,7 @@ export default function EditorPage() {
       cancelled = true;
       if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
-  }, [currentPage, documentId, isPdf, phase, sessionId]);
+  }, [currentPage, documentId, isPdf, phase, previewAttempt, sessionId]);
 
   const overlays = useMemo(() => {
     const items = [];
@@ -173,13 +189,22 @@ export default function EditorPage() {
     return items;
   }, [currentPage, detections, manualRegions, reviewState]);
 
-  const grouped = useMemo(() => groupByType(detections), [detections]);
+  const visibleDetections = useMemo(
+    () => filterDetectionsByPage(detections, pageFilter),
+    [detections, pageFilter],
+  );
+  const visibleGroups = useMemo(() => groupByType(visibleDetections), [visibleDetections]);
+  const pageOptions = useMemo(() => pageFilterOptions(detections), [detections]);
   const acceptedCount = detections.filter(
     (detection) => reviewState[detection.detectionId] === 'accepted',
   ).length;
   const undecidedCount = detections.filter(
     (detection) => !['accepted', 'rejected'].includes(reviewState[detection.detectionId]),
   ).length;
+  const footerMessage = editorFooterMessage({
+    undecidedCount,
+    hiddenCount: acceptedCount + manualRegions.length,
+  });
 
   function handleDecision(detectionId, decision) {
     setReviewState((current) => ({ ...current, [detectionId]: decision }));
@@ -198,10 +223,20 @@ export default function EditorPage() {
     });
   }
 
+  function handleBulk(decision) {
+    setReviewState((current) => {
+      const next = { ...current };
+      for (const detection of visibleDetections) {
+        if (detection?.detectionId) next[detection.detectionId] = decision;
+      }
+      return next;
+    });
+  }
+
   function handleAddRegion(bbox) {
     setManualRegions((current) => [
       ...current,
-      { id: `manual-${crypto.randomUUID()}`, pageNumber: currentPage, bbox },
+      { id: `manual-${createId()}`, pageNumber: currentPage, bbox },
     ]);
   }
 
@@ -238,11 +273,17 @@ export default function EditorPage() {
 
   return (
     <div>
-      <Stepper current={3} />
+      <Stepper current={3} documentId={documentId} />
 
       <div className="mb-7 space-y-2">
+        <Button asChild variant="ghost" size="sm" className="-ml-3">
+          <Link to={`/detect/${documentId}`}>
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            Back to detection
+          </Link>
+        </Button>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Choose what to hide</h1>
+          <h1 className="text-section font-semibold">Choose what to hide</h1>
           <Badge variant={plan?.planStatus === 'ready' ? 'success' : 'muted'}>
             {planLabel(plan?.planStatus ?? 'pending')}
           </Badge>
@@ -274,7 +315,15 @@ export default function EditorPage() {
         <Alert variant="destructive" className="mt-6">
           <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
           <AlertTitle>Editor unavailable</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            <span>{error}</span>
+            <Button size="sm" variant="outline" onClick={() => void load()}>
+              Retry
+            </Button>
+            <Button asChild size="sm" variant="ghost">
+              <Link to="/upload">Start a new upload</Link>
+            </Button>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -376,9 +425,11 @@ export default function EditorPage() {
                   <PagePreview
                     previewUrl={previewUrl}
                     loading={previewLoading}
+                    error={previewError}
                     pageGeometry={pageGeometry}
                     overlays={overlays}
                     onAddRegion={handleAddRegion}
+                    onRetry={() => setPreviewAttempt((attempt) => attempt + 1)}
                   />
                 ) : (
                   <div className="flex aspect-[3/4] items-center justify-center rounded-xl border border-border bg-gradient-to-br from-primary/5 to-accent/5 px-6 text-center text-sm text-muted-foreground">
@@ -420,11 +471,38 @@ export default function EditorPage() {
               <CardHeader>
                 <CardTitle>Masking controls</CardTitle>
                 <CardDescription>
-                  Values are masked on the server. Raw matches never reach this screen.
+                  The UI receives masked previews only. Raw matches are not exposed here.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {grouped.map((group) => {
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    htmlFor="editor-page-filter"
+                    className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                  >
+                    Show
+                  </label>
+                  <select
+                    id="editor-page-filter"
+                    value={pageFilter}
+                    onChange={(event) => setPageFilter(event.target.value)}
+                    className="h-9 min-w-[130px] rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                  >
+                    {pageOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Button size="sm" variant="outline" onClick={() => handleBulk('accepted')}>
+                    Hide all shown
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => handleBulk('rejected')}>
+                    Keep all shown
+                  </Button>
+                </div>
+
+                {visibleGroups.map((group) => {
                   const allAccepted = group.items.every(
                     (detection) => reviewState[detection.detectionId] === 'accepted',
                   );
@@ -448,22 +526,22 @@ export default function EditorPage() {
                 })}
 
                 <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
-                  {detections.map((detection) => {
+                  {visibleDetections.map((detection) => {
                     const decision = reviewState[detection.detectionId] ?? 'undecided';
                     return (
                       <div
                         key={detection.detectionId}
                         className={cn(
-                          'rounded-xl border p-3 transition-all duration-300',
+                          'rounded-xl border p-3 transition-colors',
                           decision === 'rejected' && 'border-border bg-muted/20 opacity-70',
                           decision === 'accepted' &&
                             'border-destructive/40 bg-destructive/10 ring-1 ring-destructive/20',
                           decision === 'undecided' &&
-                            'border-border bg-card/70 hover:border-primary/25 hover:shadow-card',
+                            'border-border bg-card/70 hover:border-primary/25',
                         )}
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1 space-y-1.5">
                             <div className="flex flex-wrap items-center gap-1.5">
                               <Badge variant="outline">{typeLabel(detection.type)}</Badge>
                               {detection.needsReview && <Badge variant="warning">Confirm</Badge>}
@@ -483,24 +561,24 @@ export default function EditorPage() {
                                 ` · ${detection.bboxes.length} box(es)`}
                             </p>
                           </div>
-                          <div className="flex shrink-0 gap-1">
+                          <div className="flex shrink-0 gap-1.5">
                             <Button
                               size="sm"
                               variant={decision === 'accepted' ? 'default' : 'outline'}
                               aria-pressed={decision === 'accepted'}
-                              aria-label={`Hide ${typeLabel(detection.type)}`}
                               onClick={() => handleDecision(detection.detectionId, 'accepted')}
                             >
                               <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                              Hide
                             </Button>
                             <Button
                               size="sm"
                               variant={decision === 'rejected' ? 'secondary' : 'ghost'}
                               aria-pressed={decision === 'rejected'}
-                              aria-label={`Keep ${typeLabel(detection.type)} visible`}
                               onClick={() => handleDecision(detection.detectionId, 'rejected')}
                             >
                               <X className="h-3.5 w-3.5" aria-hidden="true" />
+                              Keep
                             </Button>
                           </div>
                         </div>
@@ -508,9 +586,9 @@ export default function EditorPage() {
                     );
                   })}
 
-                  {detections.length === 0 && (
+                  {visibleDetections.length === 0 && (
                     <p className="text-sm text-muted-foreground">
-                      No detections were found. You can still mark manual areas above.
+                      No matches on this view. You can still mark a manual area on the page.
                     </p>
                   )}
                 </div>
@@ -520,11 +598,12 @@ export default function EditorPage() {
 
           <div className="surface-panel mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-5">
             <div className="text-sm text-muted-foreground">
-              {blockers.length > 0 ? (
-                <p>Resolve the privacy blockers above before continuing.</p>
-              ) : (
-                <p>All decisions recorded. Save the plan to continue.</p>
-              )}
+              <p>{blockers.length > 0 ? 'Resolve the privacy blockers above before continuing.' : footerMessage}</p>
+              <p className="mt-1 text-xs">
+                {undecidedCount === 0 && acceptedCount + manualRegions.length > 0
+                  ? 'You can return here and change any decision before exporting.'
+                  : 'Your decisions stay in this temporary session.'}
+              </p>
             </div>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (

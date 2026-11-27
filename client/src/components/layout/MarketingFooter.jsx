@@ -11,7 +11,8 @@ export function MarketingFooter() {
           <span className="font-semibold text-foreground">ResumeShield</span>
           <span>· Privacy first</span>
         </div>
-        <div className="flex gap-6">
+        <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+          <a href="#demo" className="transition-colors hover:text-primary">Example</a>
           <a href="#privacy" className="transition-colors hover:text-primary">Privacy</a>
           <a href="#how-it-works" className="transition-colors hover:text-primary">How it works</a>
           <Link to="/dashboard" className="transition-colors hover:text-primary">Dashboard</Link>

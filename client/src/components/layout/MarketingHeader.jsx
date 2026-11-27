@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, FileSearch, ScanLine, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Eye, FileSearch, ScanLine, ShieldCheck } from 'lucide-react';
 
 import { Button } from '../ui/Button.jsx';
 import { BrandMark } from '../ui/BrandMark.jsx';
@@ -7,6 +7,7 @@ import { navPillClass } from './navStyles.js';
 
 const NAV_ITEMS = [
   { href: '#features', label: 'Features', icon: FileSearch },
+  { href: '#demo', label: 'Example', icon: Eye },
   { href: '#how-it-works', label: 'How it works', icon: ScanLine },
   { href: '#privacy', label: 'Privacy', icon: ShieldCheck },
 ];

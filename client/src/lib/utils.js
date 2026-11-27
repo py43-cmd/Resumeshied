@@ -13,3 +13,11 @@ export function formatBytes(bytes) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/** Local UI IDs only. This fallback keeps non-secure contexts working. */
+export function createId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}

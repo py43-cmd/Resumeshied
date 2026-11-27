@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  bulkDecisionState,
   confidencePercent,
   groupDetectionsByPage,
   iconContextLabel,
@@ -88,4 +89,17 @@ test('requires explicit review for needsReview detections', () => {
   });
   assert.equal(complete.ready, true);
   assert.equal(complete.rejected, 1);
+});
+
+test('bulkDecisionState applies one decision to every valid detection ID', () => {
+  assert.deepEqual(bulkDecisionState(DETECTIONS, 'accepted'), {
+    a: 'accepted',
+    b: 'accepted',
+    c: 'accepted',
+  });
+  assert.deepEqual(
+    bulkDecisionState([{ detectionId: 'a' }, {}, { detectionId: 'b' }], 'rejected'),
+    { a: 'rejected', b: 'rejected' },
+  );
+  assert.deepEqual(bulkDecisionState(DETECTIONS, 'undecided'), {});
 });

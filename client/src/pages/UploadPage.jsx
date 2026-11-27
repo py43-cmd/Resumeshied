@@ -17,6 +17,7 @@ import { Dropzone } from '../components/upload/Dropzone.jsx';
 import { FileValidationCard } from '../components/upload/FileValidationCard.jsx';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert.jsx';
 import { Badge } from '../components/ui/Badge.jsx';
+import { Button } from '../components/ui/Button.jsx';
 import {
   createSession,
   destroySession,
@@ -72,7 +73,22 @@ export default function UploadPage() {
   const dropzoneStatus = error ? 'error' : DROPZONE_STATUS[phase] ?? 'idle';
 
   async function handleFile(selected) {
-    // Replacing a file destroys the previous temporary session first.
+    setFile(selected);
+    setError(null);
+    setExtraction(null);
+    setProgress(0);
+    setPhase('validating');
+
+    // Validate first: a rejected file must never destroy an active session.
+    const check = await validateFile(selected);
+    if (!check.ok) {
+      setError(check.message);
+      setPhase('error');
+      toast.error(check.message);
+      return;
+    }
+
+    // A valid replacement destroys the previous temporary session before a new one is created.
     let activeSessionId = sessionId;
     if (activeSessionId) {
       try {
@@ -82,20 +98,6 @@ export default function UploadPage() {
       }
       clearSession();
       activeSessionId = null;
-    }
-
-    setFile(selected);
-    setError(null);
-    setExtraction(null);
-    setProgress(0);
-    setPhase('validating');
-
-    const check = await validateFile(selected);
-    if (!check.ok) {
-      setError(check.message);
-      setPhase('error');
-      toast.error(check.message);
-      return;
     }
 
     try {
@@ -147,7 +149,7 @@ export default function UploadPage() {
     setError(null);
     setProgress(0);
     setPhase('idle');
-    toast.info('Temporary session destroyed.');
+    toast.info('Temporary session closed. You can upload a new file.');
   }
 
   return (
@@ -233,7 +235,13 @@ export default function UploadPage() {
         {error && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertTitle>Upload did not complete</AlertTitle>
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              <span>{error}</span>
+              <Button variant="outline" size="sm" onClick={handleRemove}>
+                Remove and try again
+              </Button>
+            </AlertDescription>
           </Alert>
         )}
       </section>

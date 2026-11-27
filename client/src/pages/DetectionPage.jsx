@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AlertTriangle, Check, FileSearch, Loader2, ScanLine, ShieldCheck } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  ChevronLeft,
+  FileSearch,
+  Loader2,
+  ScanLine,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
 
 import { Stepper } from '../components/shared/Stepper.jsx';
 import { AccuracyDisclaimer } from '../components/shared/AccuracyDisclaimer.jsx';
@@ -20,6 +29,7 @@ import {
   runOcr,
 } from '../lib/detectionApi.js';
 import {
+  bulkDecisionState,
   groupDetectionsByPage,
   initialReviewState,
   reviewSummary,
@@ -116,6 +126,13 @@ export default function DetectionPage() {
     setReviewState((current) => ({ ...current, [detectionId]: decision }));
   }
 
+  function handleBulk(decision) {
+    setReviewState((current) => ({
+      ...current,
+      ...bulkDecisionState(result?.detections ?? [], decision),
+    }));
+  }
+
   function handleContinue() {
     const summary = reviewSummary(result?.detections ?? [], reviewState);
     if (!summary.ready) return;
@@ -137,11 +154,17 @@ export default function DetectionPage() {
 
   return (
     <div>
-      <Stepper current={2} />
+      <Stepper current={2} documentId={documentId} />
 
       <div className="mb-7 space-y-2">
+        <Button asChild variant="ghost" size="sm" className="-ml-3">
+          <Link to="/upload">
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            Back to upload
+          </Link>
+        </Button>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h1 className="text-section font-semibold">
             Review detected information
           </h1>
           <Badge variant={phase === 'ready' ? 'success' : 'muted'}>
@@ -162,6 +185,14 @@ export default function DetectionPage() {
 
       <AccuracyDisclaimer />
 
+      <Alert variant="info" className="mt-6">
+        <Check className="h-4 w-4 text-primary" aria-hidden="true" />
+        <AlertDescription>
+          High-confidence matches are preselected to hide. Items marked <strong>Confirm</strong> need
+          an explicit Hide or Keep decision before you continue.
+        </AlertDescription>
+      </Alert>
+
       {phase === 'loading' && (
         <Card className="mt-6">
           <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
@@ -175,7 +206,15 @@ export default function DetectionPage() {
         <Alert variant="destructive" className="mt-6">
           <AlertTriangle className="h-4 w-4 text-destructive" aria-hidden="true" />
           <AlertTitle>Detection could not continue</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            <span>{error}</span>
+            <Button size="sm" variant="outline" onClick={() => void load()}>
+              Retry
+            </Button>
+            <Button asChild size="sm" variant="ghost">
+              <Link to="/upload">Start a new upload</Link>
+            </Button>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -261,14 +300,28 @@ export default function DetectionPage() {
               <CardHeader>
                 <CardTitle>Masked matches</CardTitle>
                 <CardDescription>
-                  Values are masked on the server. Raw matches are never sent to this UI.
+                  The UI receives masked previews only. Raw matches are not exposed here.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {result.detections.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => handleBulk('accepted')}>
+                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      Hide all
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleBulk('rejected')}>
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      Keep all
+                    </Button>
+                  </div>
+                )}
+
                 {result.detections.length === 0 && (
-                  <Alert variant="success">
+                  <Alert variant="info">
                     <AlertDescription>
-                      No personal information was detected. You can still continue.
+                      No personal information was detected. Continue to the editor if you want to
+                      mark a manual area before exporting.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -296,7 +349,9 @@ export default function DetectionPage() {
             <p className="text-sm text-muted-foreground">
               {summary.undecided > 0
                 ? `${summary.undecided} match${summary.undecided === 1 ? '' : 'es'} still need your decision.`
-                : 'All decisions recorded. You can continue.'}
+                : summary.accepted === 0
+                  ? 'No matches are marked to hide. You can add a manual area in the editor.'
+                  : `${summary.accepted} match${summary.accepted === 1 ? '' : 'es'} will be hidden. You can change decisions in the editor.`}
             </p>
             <Button onClick={handleContinue} disabled={!summary.ready}>
               Continue to redaction

@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 
 import {
   bboxToPercent,
+  decisionsFromPlan,
+  editorFooterMessage,
+  filterDetectionsByPage,
   groupByType,
+  pageFilterOptions,
   planLabel,
   pointerToBbox,
   privacyBlockerMessages,
@@ -105,5 +109,118 @@ test('toPlanDecisions keeps all valid decisions when detection list is unavailab
   assert.deepEqual(
     toPlanDecisions({ a: 'accepted', b: 'rejected', c: 'undecided' }, null),
     { a: 'accepted', b: 'rejected' },
+  );
+});
+
+test('decisionsFromPlan restores accepted detection IDs from a saved plan', () => {
+  const detections = [
+    { detectionId: 'a', needsReview: false },
+    { detectionId: 'b', needsReview: true },
+  ];
+  const planResult = {
+    planStatus: 'ready',
+    plan: {
+      status: 'ready',
+      items: [
+        { source: 'detection', detectionId: 'a' },
+        { source: 'manual', itemId: 'manual-1' },
+      ],
+    },
+  };
+
+  assert.deepEqual(decisionsFromPlan(planResult, detections), {
+    a: 'accepted',
+    b: 'rejected',
+  });
+});
+
+test('decisionsFromPlan preserves undecided items on a blocked review', () => {
+  const detections = [
+    { detectionId: 'a', needsReview: true },
+    { detectionId: 'b', needsReview: true },
+    { detectionId: 'c', needsReview: false },
+  ];
+  const planResult = {
+    planStatus: 'blocked',
+    plan: {
+      status: 'blocked',
+      privacyBlockers: ['REVIEW_INCOMPLETE'],
+      items: [{ source: 'detection', detectionId: 'a' }],
+    },
+  };
+
+  assert.deepEqual(decisionsFromPlan(planResult, detections, { b: 'rejected', c: 'accepted' }), {
+    a: 'accepted',
+    b: 'rejected',
+    c: 'rejected',
+  });
+});
+
+test('decisionsFromPlan falls back when no plan has been saved', () => {
+  const fallback = { a: 'accepted' };
+  assert.deepEqual(decisionsFromPlan({ planStatus: 'pending', plan: null }, [], fallback), fallback);
+  assert.notEqual(
+    decisionsFromPlan({ planStatus: 'pending', plan: null }, [], fallback),
+    fallback,
+  );
+});
+
+test('filterDetectionsByPage supports page numbers and text-only matches', () => {
+  const detections = [
+    { detectionId: 'a', pageNumber: 1 },
+    { detectionId: 'b', pageNumber: 2 },
+    { detectionId: 'c', pageNumber: null },
+  ];
+
+  assert.equal(filterDetectionsByPage(detections, 'all'), detections);
+  assert.deepEqual(
+    filterDetectionsByPage(detections, '2').map((item) => item.detectionId),
+    ['b'],
+  );
+  assert.deepEqual(
+    filterDetectionsByPage(detections, 'text-only').map((item) => item.detectionId),
+    ['c'],
+  );
+  assert.deepEqual(filterDetectionsByPage(detections, 'not-a-page'), detections);
+});
+
+test('pageFilterOptions lists sorted pages and text-only matches last', () => {
+  assert.deepEqual(
+    pageFilterOptions([
+      { pageNumber: 3 },
+      { pageNumber: null },
+      { pageNumber: 1 },
+      { pageNumber: 2 },
+    ]),
+    [
+      { value: 'all', label: 'All pages' },
+      { value: '1', label: 'Page 1' },
+      { value: '2', label: 'Page 2' },
+      { value: '3', label: 'Page 3' },
+      { value: 'text-only', label: 'Text-only matches' },
+    ],
+  );
+});
+
+test('editorFooterMessage reflects the remaining work', () => {
+  assert.equal(
+    editorFooterMessage({ undecidedCount: 2 }),
+    '2 matches need a Hide or Keep decision.',
+  );
+  assert.equal(
+    editorFooterMessage({ undecidedCount: 1 }),
+    '1 match needs a Hide or Keep decision.',
+  );
+  assert.equal(
+    editorFooterMessage({ hiddenCount: 0 }),
+    'Hide at least one match or mark a manual area before saving.',
+  );
+  assert.equal(
+    editorFooterMessage({ hiddenCount: 1 }),
+    '1 area will be hidden. Save the plan to continue.',
+  );
+  assert.equal(
+    editorFooterMessage({ hiddenCount: 3 }),
+    '3 areas will be hidden. Save the plan to continue.',
   );
 });

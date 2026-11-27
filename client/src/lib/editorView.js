@@ -103,3 +103,78 @@ export function toPlanDecisions(reviewState = {}, detections = null) {
 
   return decisions;
 }
+
+/**
+ * Restore decisions from a saved plan. The API stores accepted detection IDs,
+ * not the whole review map, so missing IDs are inferred from the plan status
+ * and fallback state rather than guessed from document values.
+ */
+export function decisionsFromPlan(planResult, detections = [], fallback = {}) {
+  const plan = planResult?.plan;
+  if (!plan || !Array.isArray(plan.items)) return { ...fallback };
+
+  const accepted = new Set(
+    plan.items
+      .filter((item) => item?.source === 'detection' && item?.detectionId)
+      .map((item) => item.detectionId),
+  );
+  const blockers = Array.isArray(plan.privacyBlockers) ? plan.privacyBlockers : [];
+  const reviewIncomplete = blockers.includes('REVIEW_INCOMPLETE');
+  const ready =
+    planResult?.planStatus === 'ready' || plan.status === 'ready';
+  const next = {};
+
+  for (const detection of Array.isArray(detections) ? detections : []) {
+    const id = detection?.detectionId;
+    if (!id) continue;
+
+    if (accepted.has(id)) next[id] = 'accepted';
+    else if (ready || !detection.needsReview || !reviewIncomplete) next[id] = 'rejected';
+    else next[id] = fallback[id] === 'rejected' ? 'rejected' : 'undecided';
+  }
+
+  return next;
+}
+
+export function filterDetectionsByPage(detections = [], pageFilter = 'all') {
+  const items = Array.isArray(detections) ? detections : [];
+  if (pageFilter === 'all' || pageFilter === null || pageFilter === undefined) return items;
+
+  if (pageFilter === 'text-only') {
+    return items.filter((detection) => !Number.isInteger(detection?.pageNumber));
+  }
+
+  const page = Number(pageFilter);
+  if (!Number.isInteger(page)) return items;
+  return items.filter((detection) => detection?.pageNumber === page);
+}
+
+export function pageFilterOptions(detections = []) {
+  const options = [{ value: 'all', label: 'All pages' }];
+  const pages = new Set();
+  let hasTextOnly = false;
+
+  for (const detection of Array.isArray(detections) ? detections : []) {
+    if (Number.isInteger(detection?.pageNumber)) pages.add(detection.pageNumber);
+    else hasTextOnly = true;
+  }
+
+  for (const page of [...pages].sort((a, b) => a - b)) {
+    options.push({ value: String(page), label: `Page ${page}` });
+  }
+  if (hasTextOnly) options.push({ value: 'text-only', label: 'Text-only matches' });
+
+  return options;
+}
+
+export function editorFooterMessage({ undecidedCount = 0, hiddenCount = 0 } = {}) {
+  if (undecidedCount > 0) {
+    const noun = undecidedCount === 1 ? 'match needs' : 'matches need';
+    return `${undecidedCount} ${noun} a Hide or Keep decision.`;
+  }
+  if (hiddenCount === 0) {
+    return 'Hide at least one match or mark a manual area before saving.';
+  }
+  const noun = hiddenCount === 1 ? 'area' : 'areas';
+  return `${hiddenCount} ${noun} will be hidden. Save the plan to continue.`;
+}

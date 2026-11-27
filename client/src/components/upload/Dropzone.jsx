@@ -20,22 +20,22 @@ const STATUS_COPY = {
   selected: {
     title: 'Resume selected',
     hint: 'Checking the file before we upload it',
-    action: 'Choose another file',
+    action: 'Validating file',
   },
   uploading: {
     title: 'Uploading your resume',
     hint: 'Keep this tab open while we transfer the file',
-    action: 'Choose another file',
+    action: 'Uploading file',
   },
   extracting: {
     title: 'Reading your document',
     hint: 'Extracting text and page layout',
-    action: 'Choose another file',
+    action: 'Reading file',
   },
   success: {
     title: 'Resume ready to review',
     hint: 'Upload a different file to replace it',
-    action: 'Choose another file',
+    action: 'Replace file',
   },
   error: {
     title: 'We could not process that file',
@@ -122,8 +122,9 @@ export function Dropzone({ onFile, disabled = false, status = 'idle' }) {
           isDragging && 'border-primary bg-primary/10 shadow-glow',
           status === 'success' && !isDragging && 'border-success/40',
           status === 'error' && !isDragging && 'border-destructive/40',
-          disabled && 'pointer-events-none opacity-60',
+          disabled && 'pointer-events-none cursor-default opacity-70',
         )}
+        aria-disabled={disabled || undefined}
       >
         <span
           className={cn(

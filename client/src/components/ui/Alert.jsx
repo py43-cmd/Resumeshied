@@ -3,7 +3,7 @@ import { cva } from 'class-variance-authority';
 import { cn } from '../../lib/utils.js';
 
 const alertVariants = cva(
-  'relative w-full rounded-xl border p-4 text-sm shadow-card backdrop-blur-sm [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg~*]:pl-7',
+  'relative w-full rounded-xl border p-4 text-sm shadow-card [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg~*]:pl-7',
   {
     variants: {
       variant: {
@@ -18,17 +18,27 @@ const alertVariants = cva(
   },
 );
 
-export const Alert = React.forwardRef(({ className, variant, ...props }, ref) => (
-  <div ref={ref} role="alert" className={cn(alertVariants({ variant }), className)} {...props} />
-));
+export const Alert = React.forwardRef(({ className, variant = 'default', role, ...props }, ref) => {
+  const impliedRole =
+    variant === 'destructive' || variant === 'warning' ? 'alert' : 'status';
+
+  return (
+    <div
+      ref={ref}
+      role={role ?? impliedRole}
+      className={cn(alertVariants({ variant }), className)}
+      {...props}
+    />
+  );
+});
 Alert.displayName = 'Alert';
 
 export const AlertTitle = React.forwardRef(({ className, ...props }, ref) => (
-  <h5 ref={ref} className={cn('mb-1 font-semibold leading-none tracking-tight', className)} {...props} />
+  <h5 ref={ref} className={cn('mb-1 font-semibold leading-snug tracking-tight', className)} {...props} />
 ));
 AlertTitle.displayName = 'AlertTitle';
 
 export const AlertDescription = React.forwardRef(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('text-sm text-muted-foreground', className)} {...props} />
+  <div ref={ref} className={cn('text-sm leading-relaxed text-muted-foreground', className)} {...props} />
 ));
 AlertDescription.displayName = 'AlertDescription';

@@ -146,3 +146,12 @@ export function decisionVariant(detection, decision) {
   if (decision === 'accepted') return detection.needsReview ? 'warning' : 'success';
   return detection.needsReview ? 'warning' : 'outline';
 }
+
+export function bulkDecisionState(detections = [], decision) {
+  if (decision !== 'accepted' && decision !== 'rejected') return {};
+  return Object.fromEntries(
+    (Array.isArray(detections) ? detections : [])
+      .map((detection) => [detection?.detectionId, decision])
+      .filter(([id]) => Boolean(id)),
+  );
+}

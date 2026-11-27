@@ -19,7 +19,7 @@ export function ScannerVisual() {
           </span>
           <div>
             <CardTitle>Privacy scan complete</CardTitle>
-            <CardDescription>Local engine · no network calls</CardDescription>
+            <CardDescription>Server-side detection · masked preview</CardDescription>
           </div>
         </div>
         <Badge variant="success">Complete</Badge>
